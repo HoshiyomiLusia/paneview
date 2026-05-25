@@ -89,7 +89,7 @@ cargo install --path . --locked
 - Focus switching between panes
 - Input forwarding to the focused pane
 - `Ctrl+C` sent to the focused pane process
-- Toggleable graphical system status panel
+- Toggleable top dashboard with system status cards
 - CPU, memory, disk, network, OS, kernel, hostname, and uptime display
 
 ## Keybindings

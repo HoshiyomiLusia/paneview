@@ -10,6 +10,7 @@ const HISTORY_LIMIT: usize = 60;
 #[derive(Debug, Clone)]
 pub struct SystemSnapshot {
     pub cpu_usage: Option<f32>,
+    pub cpu_cores: Vec<CpuCoreSnapshot>,
     pub memory_total: u64,
     pub memory_used: u64,
     pub memory_percent: Option<f32>,
@@ -18,6 +19,7 @@ pub struct SystemSnapshot {
     pub rx_per_sec: Option<f64>,
     pub tx_per_sec: Option<f64>,
     pub cpu_history: Vec<u64>,
+    pub memory_history: Vec<u64>,
     pub rx_history: Vec<u64>,
     pub tx_history: Vec<u64>,
     pub os_name: String,
@@ -30,6 +32,7 @@ impl Default for SystemSnapshot {
     fn default() -> Self {
         Self {
             cpu_usage: None,
+            cpu_cores: Vec::new(),
             memory_total: 0,
             memory_used: 0,
             memory_percent: None,
@@ -38,6 +41,7 @@ impl Default for SystemSnapshot {
             rx_per_sec: None,
             tx_per_sec: None,
             cpu_history: Vec::new(),
+            memory_history: Vec::new(),
             rx_history: Vec::new(),
             tx_history: Vec::new(),
             os_name: "N/A".to_string(),
@@ -46,6 +50,12 @@ impl Default for SystemSnapshot {
             uptime_secs: 0,
         }
     }
+}
+
+#[derive(Debug, Clone)]
+pub struct CpuCoreSnapshot {
+    pub name: String,
+    pub usage: f32,
 }
 
 #[derive(Debug, Clone)]
@@ -70,6 +80,7 @@ pub struct SystemMonitor {
     last_refresh: Instant,
     snapshot: SystemSnapshot,
     cpu_history: VecDeque<u64>,
+    memory_history: VecDeque<u64>,
     rx_history: VecDeque<u64>,
     tx_history: VecDeque<u64>,
 }
@@ -83,6 +94,7 @@ impl SystemMonitor {
             last_refresh: Instant::now(),
             snapshot: SystemSnapshot::default(),
             cpu_history: VecDeque::with_capacity(HISTORY_LIMIT),
+            memory_history: VecDeque::with_capacity(HISTORY_LIMIT),
             rx_history: VecDeque::with_capacity(HISTORY_LIMIT),
             tx_history: VecDeque::with_capacity(HISTORY_LIMIT),
         };
@@ -113,6 +125,10 @@ impl SystemMonitor {
             snapshot.cpu_usage.map(percent_to_history).unwrap_or(0),
         );
         push_history(
+            &mut self.memory_history,
+            snapshot.memory_percent.map(percent_to_history).unwrap_or(0),
+        );
+        push_history(
             &mut self.rx_history,
             snapshot.rx_per_sec.map(rate_to_history).unwrap_or(0),
         );
@@ -121,6 +137,7 @@ impl SystemMonitor {
             snapshot.tx_per_sec.map(rate_to_history).unwrap_or(0),
         );
         snapshot.cpu_history = self.cpu_history.iter().copied().collect();
+        snapshot.memory_history = self.memory_history.iter().copied().collect();
         snapshot.rx_history = self.rx_history.iter().copied().collect();
         snapshot.tx_history = self.tx_history.iter().copied().collect();
         self.snapshot = snapshot;
@@ -135,6 +152,16 @@ impl SystemMonitor {
         } else {
             None
         };
+        let cpu_cores = self
+            .system
+            .cpus()
+            .iter()
+            .enumerate()
+            .map(|(index, cpu)| CpuCoreSnapshot {
+                name: format!("cpu{index}"),
+                usage: cpu.cpu_usage(),
+            })
+            .collect();
 
         let disks = self
             .disks
@@ -163,6 +190,7 @@ impl SystemMonitor {
 
         SystemSnapshot {
             cpu_usage: Some(self.system.global_cpu_usage()),
+            cpu_cores,
             memory_total,
             memory_used,
             memory_percent,
@@ -171,6 +199,7 @@ impl SystemMonitor {
             rx_per_sec,
             tx_per_sec,
             cpu_history: Vec::new(),
+            memory_history: Vec::new(),
             rx_history: Vec::new(),
             tx_history: Vec::new(),
             os_name: System::long_os_version()

@@ -73,7 +73,7 @@ impl Regions {
             status_height,
         );
 
-        if !show_system || content.width < 50 || content.height < 10 {
+        if !show_system || content.width < 50 || content.height < 18 {
             return Self {
                 panes: content,
                 system: None,
@@ -81,40 +81,32 @@ impl Regions {
             };
         }
 
-        if content.width >= 96 {
-            let system_width = content.width.clamp(30, 36);
-            let pane_width = content.width.saturating_sub(system_width);
-            return Self {
-                panes: Rect::new(content.x, content.y, pane_width, content.height),
-                system: Some(Rect::new(
-                    content.x.saturating_add(pane_width),
-                    content.y,
-                    system_width,
-                    content.height,
-                )),
-                status,
-            };
-        }
-
-        let system_height = 9.min(content.height / 2);
+        let system_height = dashboard_height(content.height);
         Self {
             panes: Rect::new(
                 content.x,
-                content.y,
+                content.y.saturating_add(system_height),
                 content.width,
                 content.height.saturating_sub(system_height),
             ),
             system: Some(Rect::new(
                 content.x,
-                content
-                    .y
-                    .saturating_add(content.height.saturating_sub(system_height)),
+                content.y,
                 content.width,
                 system_height,
             )),
             status,
         }
     }
+}
+
+fn dashboard_height(content_height: u16) -> u16 {
+    if content_height < 18 {
+        return 0;
+    }
+
+    let preferred = ((u32::from(content_height) * 45) / 100) as u16;
+    preferred.clamp(8, 18).min(content_height.saturating_sub(6))
 }
 
 fn status_bar_height(total_height: u16) -> u16 {
@@ -173,7 +165,7 @@ fn draw_system(frame: &mut Frame<'_>, area: Rect, snapshot: &SystemSnapshot) {
         return;
     }
 
-    let block = Block::default().borders(Borders::ALL).title(" status ");
+    let block = Block::default().borders(Borders::ALL).title(" dashboard ");
     let inner = block.inner(area);
     frame.render_widget(block, area);
 
@@ -181,32 +173,109 @@ fn draw_system(frame: &mut Frame<'_>, area: Rect, snapshot: &SystemSnapshot) {
         return;
     }
 
-    let mut y = inner.y;
-    let bottom = inner.bottom();
+    if inner.height < 8 {
+        draw_compact_dashboard(frame, inner, snapshot);
+        return;
+    }
 
+    let top_height = (inner.height / 2).max(4);
+    let top = Rect::new(inner.x, inner.y, inner.width, top_height);
+    let bottom = Rect::new(
+        inner.x,
+        inner.y.saturating_add(top_height),
+        inner.width,
+        inner.height.saturating_sub(top_height),
+    );
+
+    let [system_area, cpu_area, memory_area] = split_columns(top, 28, 36);
+    draw_system_card(frame, system_area, snapshot);
+    draw_cpu_card(frame, cpu_area, snapshot);
+    draw_memory_card(frame, memory_area, snapshot);
+
+    if bottom.height > 0 {
+        let [network_area, disk_area, interface_area] = split_columns(bottom, 32, 40);
+        draw_network_card(frame, network_area, snapshot);
+        draw_disk_card(frame, disk_area, snapshot);
+        draw_interfaces_card(frame, interface_area, snapshot);
+    }
+}
+
+fn draw_compact_dashboard(frame: &mut Frame<'_>, area: Rect, snapshot: &SystemSnapshot) {
+    let mut y = area.y;
+    draw_line(
+        frame,
+        area,
+        &mut y,
+        format!(
+            "{} | CPU {} | MEM {} | NET down {} up {}",
+            snapshot.host_name,
+            percent_label(snapshot.cpu_usage),
+            percent_label(snapshot.memory_percent),
+            rate_label(snapshot.rx_per_sec),
+            rate_label(snapshot.tx_per_sec)
+        ),
+    );
+    draw_sparkline_row(
+        frame,
+        area,
+        &mut y,
+        "load",
+        &snapshot.cpu_history,
+        Some(100),
+        Color::Green,
+    );
+}
+
+fn draw_system_card(frame: &mut Frame<'_>, area: Rect, snapshot: &SystemSnapshot) {
+    let inner = draw_panel(frame, area, "System");
+    let mut y = inner.y;
     draw_line(
         frame,
         inner,
         &mut y,
-        format!("{} | {}", snapshot.host_name, snapshot.os_name),
+        truncate(&snapshot.host_name, inner.width as usize),
+    );
+    draw_line(
+        frame,
+        inner,
+        &mut y,
+        truncate(&snapshot.os_name, inner.width as usize),
     );
     draw_line(
         frame,
         inner,
         &mut y,
         format!(
-            "kernel {} | up {}",
-            snapshot.kernel_version,
-            format_duration(snapshot.uptime_secs)
+            "kernel {}",
+            truncate(
+                &snapshot.kernel_version,
+                inner.width.saturating_sub(7) as usize
+            )
         ),
     );
+    draw_line(
+        frame,
+        inner,
+        &mut y,
+        format!("uptime {}", format_duration(snapshot.uptime_secs)),
+    );
+    draw_gap(&mut y, inner.bottom());
+    draw_line(
+        frame,
+        inner,
+        &mut y,
+        truncate("[host]--[net]--[disk]", inner.width as usize),
+    );
+}
 
-    draw_gap(&mut y, bottom);
+fn draw_cpu_card(frame: &mut Frame<'_>, area: Rect, snapshot: &SystemSnapshot) {
+    let inner = draw_panel(frame, area, "CPU");
+    let mut y = inner.y;
     draw_gauge_row(
         frame,
         inner,
         &mut y,
-        "CPU",
+        "total",
         snapshot.cpu_usage,
         Color::LightGreen,
     );
@@ -214,46 +283,87 @@ fn draw_system(frame: &mut Frame<'_>, area: Rect, snapshot: &SystemSnapshot) {
         frame,
         inner,
         &mut y,
-        "load",
+        "trend",
         &snapshot.cpu_history,
         Some(100),
         Color::Green,
     );
+
+    for core in snapshot
+        .cpu_cores
+        .iter()
+        .take(inner.bottom().saturating_sub(y) as usize)
+    {
+        draw_line(
+            frame,
+            inner,
+            &mut y,
+            format!(
+                "{} {} {:>4.0}%",
+                truncate(&core.name, 5),
+                ascii_bar(core.usage, 10),
+                core.usage
+            ),
+        );
+    }
+}
+
+fn draw_memory_card(frame: &mut Frame<'_>, area: Rect, snapshot: &SystemSnapshot) {
+    let inner = draw_panel(frame, area, "Memory");
+    let mut y = inner.y;
     draw_gauge_row(
         frame,
         inner,
         &mut y,
-        "MEM",
+        "RAM",
         snapshot.memory_percent,
         Color::LightBlue,
+    );
+    draw_sparkline_row(
+        frame,
+        inner,
+        &mut y,
+        "trend",
+        &snapshot.memory_history,
+        Some(100),
+        Color::Blue,
     );
     draw_line(
         frame,
         inner,
         &mut y,
         format!(
-            "mem {} / {}",
+            "used {} / {}",
             format_bytes(snapshot.memory_used),
             format_bytes(snapshot.memory_total)
         ),
     );
+    draw_gap(&mut y, inner.bottom());
+    draw_line(
+        frame,
+        inner,
+        &mut y,
+        truncate(
+            &format!(
+                "map {}",
+                ascii_bar(snapshot.memory_percent.unwrap_or(0.0), 18)
+            ),
+            inner.width as usize,
+        ),
+    );
+}
 
-    draw_gap(&mut y, bottom);
-    draw_section(frame, inner, &mut y, "Network");
+fn draw_network_card(frame: &mut Frame<'_>, area: Rect, snapshot: &SystemSnapshot) {
+    let inner = draw_panel(frame, area, "Network");
+    let mut y = inner.y;
     draw_line(
         frame,
         inner,
         &mut y,
         format!(
             "down {}  up {}",
-            snapshot
-                .rx_per_sec
-                .map(|value| format!("{}/s", format_bytes(value as u64)))
-                .unwrap_or_else(|| "N/A".to_string()),
-            snapshot
-                .tx_per_sec
-                .map(|value| format!("{}/s", format_bytes(value as u64)))
-                .unwrap_or_else(|| "N/A".to_string())
+            rate_label(snapshot.rx_per_sec),
+            rate_label(snapshot.tx_per_sec)
         ),
     );
     draw_sparkline_row(
@@ -274,10 +384,23 @@ fn draw_system(frame: &mut Frame<'_>, area: Rect, snapshot: &SystemSnapshot) {
         None,
         Color::Magenta,
     );
+    draw_gap(&mut y, inner.bottom());
+    draw_line(
+        frame,
+        inner,
+        &mut y,
+        truncate("[pane]=>[iface]=>[lan]", inner.width as usize),
+    );
+}
 
-    draw_gap(&mut y, bottom);
-    draw_section(frame, inner, &mut y, "Disk");
-    for disk in snapshot.disks.iter().take(3) {
+fn draw_disk_card(frame: &mut Frame<'_>, area: Rect, snapshot: &SystemSnapshot) {
+    let inner = draw_panel(frame, area, "Disk");
+    let mut y = inner.y;
+    for disk in snapshot
+        .disks
+        .iter()
+        .take(inner.height.saturating_sub(1) as usize)
+    {
         draw_gauge_row_with_text(
             frame,
             inner,
@@ -296,10 +419,12 @@ fn draw_system(frame: &mut Frame<'_>, area: Rect, snapshot: &SystemSnapshot) {
             Color::Yellow,
         );
     }
+}
 
-    draw_gap(&mut y, bottom);
-    draw_section(frame, inner, &mut y, "Interfaces");
-    for interface in snapshot.interfaces.iter().take(4) {
+fn draw_interfaces_card(frame: &mut Frame<'_>, area: Rect, snapshot: &SystemSnapshot) {
+    let inner = draw_panel(frame, area, "Interfaces");
+    let mut y = inner.y;
+    for interface in snapshot.interfaces.iter().take(inner.height as usize) {
         let state = match interface.is_up {
             Some(true) => Span::styled("up", Style::default().fg(Color::Green)),
             Some(false) => Span::styled("down", Style::default().fg(Color::Red)),
@@ -324,6 +449,46 @@ fn draw_system(frame: &mut Frame<'_>, area: Rect, snapshot: &SystemSnapshot) {
             ]),
         );
     }
+}
+
+fn draw_panel(frame: &mut Frame<'_>, area: Rect, title: &str) -> Rect {
+    if area.width == 0 || area.height == 0 {
+        return area;
+    }
+
+    let block = Block::default()
+        .borders(Borders::ALL)
+        .title(format!(" {title} "));
+    let inner = block.inner(area);
+    frame.render_widget(block, area);
+    inner
+}
+
+fn split_columns(area: Rect, first_percent: u16, second_percent: u16) -> [Rect; 3] {
+    let first_width = ((u32::from(area.width) * u32::from(first_percent)) / 100) as u16;
+    let second_width = ((u32::from(area.width) * u32::from(second_percent)) / 100) as u16;
+    let third_width = area
+        .width
+        .saturating_sub(first_width)
+        .saturating_sub(second_width);
+
+    [
+        Rect::new(area.x, area.y, first_width, area.height),
+        Rect::new(
+            area.x.saturating_add(first_width),
+            area.y,
+            second_width,
+            area.height,
+        ),
+        Rect::new(
+            area.x
+                .saturating_add(first_width)
+                .saturating_add(second_width),
+            area.y,
+            third_width,
+            area.height,
+        ),
+    ]
 }
 
 fn draw_status(frame: &mut Frame<'_>, area: Rect, app: &App) {
@@ -388,19 +553,6 @@ fn draw_rich_line(frame: &mut Frame<'_>, area: Rect, y: &mut u16, line: Line<'_>
     }
     frame.render_widget(Paragraph::new(line), Rect::new(area.x, *y, area.width, 1));
     *y = y.saturating_add(1);
-}
-
-fn draw_section(frame: &mut Frame<'_>, area: Rect, y: &mut u16, title: &str) {
-    if *y >= area.bottom() {
-        return;
-    }
-    let line = Line::from(vec![Span::styled(
-        title,
-        Style::default()
-            .fg(Color::Cyan)
-            .add_modifier(Modifier::BOLD),
-    )]);
-    draw_rich_line(frame, area, y, line);
 }
 
 fn draw_gap(y: &mut u16, bottom: u16) {
@@ -509,6 +661,28 @@ fn short_mount(mount: &str) -> String {
             .unwrap_or(mount)
             .to_string()
     }
+}
+
+fn percent_label(value: Option<f32>) -> String {
+    value
+        .map(|value| format!("{value:.1}%"))
+        .unwrap_or_else(|| "N/A".to_string())
+}
+
+fn rate_label(value: Option<f64>) -> String {
+    value
+        .map(|value| format!("{}/s", format_bytes(value as u64)))
+        .unwrap_or_else(|| "N/A".to_string())
+}
+
+fn ascii_bar(percent: f32, width: usize) -> String {
+    if width == 0 {
+        return String::new();
+    }
+
+    let filled = ((percent.clamp(0.0, 100.0) / 100.0) * width as f32).round() as usize;
+    let filled = filled.min(width);
+    format!("{}{}", "#".repeat(filled), ".".repeat(width - filled))
 }
 
 fn truncate(value: &str, max_chars: usize) -> String {
