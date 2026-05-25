@@ -19,7 +19,7 @@ paneview
 ## Requirements
 
 - macOS or Linux
-- Rust 1.85+ with Cargo
+- Rust 1.95+ with Cargo
 - `$HOME/.cargo/bin` in your `PATH`
 - A local shell such as `zsh`, `bash`, or `sh`
 - A UTF-8 capable terminal

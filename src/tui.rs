@@ -59,7 +59,7 @@ struct Regions {
 
 impl Regions {
     fn from(area: Rect, show_system: bool) -> Self {
-        let status_height = if area.height > 0 { 1 } else { 0 };
+        let status_height = status_bar_height(area.height);
         let content = Rect::new(
             area.x,
             area.y,
@@ -114,6 +114,15 @@ impl Regions {
             )),
             status,
         }
+    }
+}
+
+fn status_bar_height(total_height: u16) -> u16 {
+    match total_height {
+        0 => 0,
+        1..=11 => 1,
+        12..=17 => 2,
+        _ => 3,
     }
 }
 
@@ -322,9 +331,8 @@ fn draw_status(frame: &mut Frame<'_>, area: Rect, app: &App) {
         return;
     }
 
-    let shortcuts = "Ctrl+Q quit | Ctrl+H/J/K/L focus | Ctrl+\\ split V | Ctrl+- split H | Ctrl+N new | Ctrl+W close | Ctrl+S sys";
-    let status = format!(
-        "mode:normal | pane:{}/{} | {} | msg:{} | {}",
+    let info = format!(
+        "mode:normal | pane:{}/{} | {} | msg:{}",
         pane_label(app.focused()),
         app.pane_count(),
         if app.show_system_panel() {
@@ -333,16 +341,41 @@ fn draw_status(frame: &mut Frame<'_>, area: Rect, app: &App) {
             "sys:off"
         },
         app.status(),
-        shortcuts
     );
 
+    let lines = status_lines(&info, area.height, area.width);
     let paragraph =
-        Paragraph::new(status).style(Style::default().bg(Color::DarkGray).fg(Color::White));
+        Paragraph::new(lines).style(Style::default().bg(Color::DarkGray).fg(Color::White));
     frame.render_widget(paragraph, area);
 }
 
 fn pane_label(id: PaneId) -> String {
     id.to_string()
+}
+
+fn status_lines(info: &str, height: u16, width: u16) -> Vec<Line<'static>> {
+    let width = width as usize;
+    let lines = match height {
+        0 => Vec::new(),
+        1 => vec![format!(
+            "{} | ^Q quit | ^H/J/K/L focus | ^\\ /^- split | ^N new | ^W close | ^S sys",
+            info
+        )],
+        2 => vec![
+            info.to_string(),
+            "Keys: ^Q quit | ^H/J/K/L focus | ^\\ Vsplit | ^- Hsplit | ^N new | ^W close | ^S sys | ^C interrupt".to_string(),
+        ],
+        _ => vec![
+            info.to_string(),
+            "Keys: Ctrl+Q quit | Ctrl+H/J/K/L focus | Ctrl+\\ vertical split | Ctrl+- horizontal split".to_string(),
+            "      Ctrl+N new pane | Ctrl+W close pane | Ctrl+S system panel | Ctrl+C send interrupt".to_string(),
+        ],
+    };
+
+    lines
+        .into_iter()
+        .map(|line| Line::from(truncate(&line, width)))
+        .collect()
 }
 
 fn draw_line(frame: &mut Frame<'_>, area: Rect, y: &mut u16, text: String) {
