@@ -1,127 +1,96 @@
 # PaneView
 
-PaneView is a cross-platform Rust terminal UI for running PTY-backed shell panes and monitoring local system status.
+PaneView is a cross-platform Rust TUI for split PTY-backed shell panes and local system monitoring.
 
-It targets macOS and Linux. The first version is an MVP, not a full tmux replacement.
+## One-line install
 
-## Features
+If Rust and Cargo are already installed:
 
-- Split terminal panes in a TUI.
-- PTY-backed shell execution for each pane.
-- Vertical and horizontal splits.
-- Focus switching between panes.
-- Input forwarding to the focused pane.
-- `Ctrl+C` is sent to the focused pane process instead of closing PaneView.
-- Close the focused pane.
-- Toggle a graphical system status panel.
-- Show CPU, memory, disk, network interfaces, IP addresses, network throughput, OS name, kernel version, hostname, and uptime.
+```bash
+cargo install --git https://github.com/HoshiyomiLusia/paneview.git --locked
+```
 
-## Dependencies
+Then run:
 
-### System Requirements
+```bash
+paneview
+```
 
-- macOS or Linux.
-- A terminal emulator with UTF-8 support.
-- Rust toolchain with Cargo.
-- A local shell such as `zsh`, `bash`, or `sh`.
+## Requirements
+
+- macOS or Linux
+- Rust 1.85+ with Cargo
+- `$HOME/.cargo/bin` in your `PATH`
+- A local shell such as `zsh`, `bash`, or `sh`
+- A UTF-8 capable terminal
 
 No root permission is required.
 
-### Install Rust
+## Install Rust
 
-Install Rust with `rustup`:
+If Rust is not installed yet:
 
 ```bash
 curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
 ```
 
-Then restart your terminal or load Cargo into your current shell:
+Load Cargo into your current shell:
 
 ```bash
 source "$HOME/.cargo/env"
 ```
 
-Check the installation:
+Check it:
 
 ```bash
-rustc --version
 cargo --version
 ```
 
-### Rust Crates
+## Project dependencies
 
-Cargo installs Rust crate dependencies automatically when you build or install the project.
+Rust crate dependencies are installed automatically by Cargo. You do not need to install them manually.
 
-Main crates used by PaneView:
+Main crates:
 
-- `ratatui`: terminal UI rendering.
-- `crossterm`: terminal input and screen control.
-- `portable-pty`: cross-platform PTY support.
-- `sysinfo`: system metrics.
-- `if-addrs`: network interface addresses.
-- `vt100`: terminal output parsing.
-- `crossbeam-channel`: PTY reader communication.
-- `anyhow`: error handling.
+- `ratatui` for TUI rendering
+- `crossterm` for terminal input and screen control
+- `portable-pty` for PTY-backed shell panes
+- `sysinfo` for system metrics
+- `if-addrs` for network interface addresses
+- `vt100` for terminal output parsing
+- `crossbeam-channel` for PTY output communication
+- `anyhow` for error handling
 
-You do not need to install these crates manually.
-
-## Build
+## Build from source
 
 ```bash
-cargo build
-```
-
-For an optimized binary:
-
-```bash
+git clone https://github.com/HoshiyomiLusia/paneview.git
+cd paneview
 cargo build --release
 ```
 
-## Run
-
-Run from the project directory:
-
-```bash
-cargo run
-```
-
-Or run the debug binary:
-
-```bash
-./target/debug/paneview
-```
-
-Or run the release binary:
+Run the release binary:
 
 ```bash
 ./target/release/paneview
 ```
 
-## Install as a Command
-
-Install PaneView into Cargo's binary directory:
+Install from the local checkout:
 
 ```bash
-cargo install --path .
+cargo install --path . --locked
 ```
 
-Make sure Cargo's binary directory is in your `PATH`:
+## Features
 
-```bash
-echo "$PATH"
-```
-
-It should include:
-
-```text
-$HOME/.cargo/bin
-```
-
-After installation, run:
-
-```bash
-paneview
-```
+- Multiple split terminal panes
+- Vertical and horizontal splits
+- PTY-backed shell execution
+- Focus switching between panes
+- Input forwarding to the focused pane
+- `Ctrl+C` sent to the focused pane process
+- Toggleable graphical system status panel
+- CPU, memory, disk, network, OS, kernel, hostname, and uptime display
 
 ## Keybindings
 
@@ -139,32 +108,19 @@ paneview
 | `Ctrl+S` | Toggle the system status panel |
 | `Ctrl+C` | Send interrupt to the focused pane process |
 
-## Project Structure
-
-```text
-src/
-  app.rs      Application state, pane management, focus management
-  input.rs    Keyboard input handling
-  layout.rs   Split tree layout and layout tests
-  main.rs     Terminal setup and main loop
-  pane.rs     PTY, shell process, output buffer
-  system.rs   macOS/Linux system information collection
-  tui.rs      ratatui rendering
-```
-
-## Known Limitations
-
-- PaneView is an MVP.
-- The pane renderer uses `vt100` for common ANSI output parsing, but it is not a complete terminal emulator.
-- Each pane starts the user's default shell. There is no command palette yet.
-- Closing the last pane is blocked.
-- GPU monitoring, temperature, fan speed, packet capture, remote host management, and plugins are not included.
-- Metrics that are unavailable on a platform are shown as `N/A`.
-
-## Development Checks
+## Development
 
 ```bash
 cargo fmt
 cargo check
 cargo test
 ```
+
+## Limitations
+
+- This is an MVP, not a tmux replacement.
+- Pane rendering uses `vt100` for common ANSI output, but it is not a complete terminal emulator.
+- Each pane starts the user's default shell.
+- Closing the last pane is blocked.
+- GPU, temperature, fan, packet capture, remote host management, and plugins are not included.
+- Unavailable system metrics are shown as `N/A`.
