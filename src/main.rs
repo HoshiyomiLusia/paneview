@@ -1,4 +1,5 @@
 mod app;
+mod cli;
 mod input;
 mod layout;
 mod pane;
@@ -12,9 +13,14 @@ use crossterm::event::{self, Event};
 use ratatui::layout::Rect;
 
 use crate::app::App;
+use crate::cli::CliAction;
 use crate::input::event_to_action;
 
 fn main() -> anyhow::Result<()> {
+    if cli::handle_args()? == CliAction::Exit {
+        return Ok(());
+    }
+
     let mut terminal = tui::init_terminal().context("failed to initialize terminal")?;
     let run_result = run(&mut terminal);
     let restore_result = tui::restore_terminal(&mut terminal);

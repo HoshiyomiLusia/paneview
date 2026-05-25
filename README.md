@@ -30,6 +30,32 @@ Uninstall:
 cargo uninstall paneview
 ```
 
+## Version and Updates
+
+Show the installed version and build commit:
+
+```bash
+paneview --version
+```
+
+Check whether the installed build matches the latest GitHub `main` commit:
+
+```bash
+paneview check-update
+```
+
+Update PaneView through Cargo:
+
+```bash
+paneview update
+```
+
+The update command runs:
+
+```bash
+cargo install --git https://github.com/HoshiyomiLusia/paneview.git --locked --force
+```
+
 ## Requirements
 
 - macOS or Linux
@@ -37,6 +63,7 @@ cargo uninstall paneview
 - `$HOME/.cargo/bin` in your `PATH`
 - A UTF-8 capable terminal
 - A local shell such as `zsh`, `bash`, or `sh`
+- `git` in your `PATH` for `paneview check-update`
 
 No root permission is required.
 
