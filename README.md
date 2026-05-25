@@ -1,97 +1,167 @@
 # PaneView
 
-PaneView 是一个 Rust 编写的跨平台终端 UI 工具，用于在一个 TUI 中分屏运行本机 shell，并查看基础系统状态。
+PaneView is a cross-platform Rust terminal UI for running PTY-backed shell panes and monitoring local system status.
 
-目标平台：
+It targets macOS and Linux. The first version is an MVP, not a full tmux replacement.
 
-- macOS
-- Linux
+## Features
 
-第一版是 MVP，不追求完整替代 tmux。
+- Split terminal panes in a TUI.
+- PTY-backed shell execution for each pane.
+- Vertical and horizontal splits.
+- Focus switching between panes.
+- Input forwarding to the focused pane.
+- `Ctrl+C` is sent to the focused pane process instead of closing PaneView.
+- Close the focused pane.
+- Toggle a graphical system status panel.
+- Show CPU, memory, disk, network interfaces, IP addresses, network throughput, OS name, kernel version, hostname, and uptime.
 
-## 功能
+## Dependencies
 
-- 使用 `ratatui` + `crossterm` 渲染终端 UI。
-- 每个 pane 使用 PTY 启动独立 shell。
-- 支持纵向分屏，也就是左右分屏。
-- 支持横向分屏，也就是上下分屏。
-- 支持切换焦点 pane。
-- 普通键盘输入会发送到当前焦点 pane。
-- `Ctrl+C` 会发送给当前 pane 内的进程，不会退出 PaneView。
-- 支持关闭当前 pane。
-- 支持显示或隐藏图形化系统信息面板。
-- 系统面板用进度条和火花线显示 CPU、内存、磁盘、网络接口、IP、网络速率、系统版本、内核、主机名和运行时间。
+### System Requirements
 
-## 安装与运行
+- macOS or Linux.
+- A terminal emulator with UTF-8 support.
+- Rust toolchain with Cargo.
+- A local shell such as `zsh`, `bash`, or `sh`.
 
-需要安装 Rust 工具链。
+No root permission is required.
+
+### Install Rust
+
+Install Rust with `rustup`:
+
+```bash
+curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
+```
+
+Then restart your terminal or load Cargo into your current shell:
+
+```bash
+source "$HOME/.cargo/env"
+```
+
+Check the installation:
+
+```bash
+rustc --version
+cargo --version
+```
+
+### Rust Crates
+
+Cargo installs Rust crate dependencies automatically when you build or install the project.
+
+Main crates used by PaneView:
+
+- `ratatui`: terminal UI rendering.
+- `crossterm`: terminal input and screen control.
+- `portable-pty`: cross-platform PTY support.
+- `sysinfo`: system metrics.
+- `if-addrs`: network interface addresses.
+- `vt100`: terminal output parsing.
+- `crossbeam-channel`: PTY reader communication.
+- `anyhow`: error handling.
+
+You do not need to install these crates manually.
+
+## Build
 
 ```bash
 cargo build
 ```
 
-安装为当前用户可直接执行的命令：
+For an optimized binary:
 
 ```bash
-cargo install --path .
+cargo build --release
 ```
 
-安装后可以直接运行：
+## Run
 
-```bash
-paneview
-```
-
-运行：
+Run from the project directory:
 
 ```bash
 cargo run
 ```
 
-或运行编译后的二进制：
+Or run the debug binary:
 
 ```bash
 ./target/debug/paneview
 ```
 
-## 快捷键
+Or run the release binary:
 
-| 快捷键 | 功能 |
+```bash
+./target/release/paneview
+```
+
+## Install as a Command
+
+Install PaneView into Cargo's binary directory:
+
+```bash
+cargo install --path .
+```
+
+Make sure Cargo's binary directory is in your `PATH`:
+
+```bash
+echo "$PATH"
+```
+
+It should include:
+
+```text
+$HOME/.cargo/bin
+```
+
+After installation, run:
+
+```bash
+paneview
+```
+
+## Keybindings
+
+| Key | Action |
 | --- | --- |
-| `Ctrl+Q` | 退出程序 |
-| `Ctrl+H` | 聚焦左侧 pane |
-| `Ctrl+J` | 聚焦下方 pane |
-| `Ctrl+K` | 聚焦上方 pane |
-| `Ctrl+L` | 聚焦右侧 pane |
-| `Ctrl+\` | 纵向分屏，生成左右 pane |
-| `Ctrl+-` | 横向分屏，生成上下 pane |
-| `Ctrl+N` | 新建 pane，默认使用纵向分屏 |
-| `Ctrl+W` | 关闭当前 pane |
-| `Ctrl+S` | 显示或隐藏系统信息面板 |
-| `Ctrl+C` | 发送到当前 pane 内进程 |
+| `Ctrl+Q` | Quit PaneView |
+| `Ctrl+H` | Focus pane on the left |
+| `Ctrl+J` | Focus pane below |
+| `Ctrl+K` | Focus pane above |
+| `Ctrl+L` | Focus pane on the right |
+| `Ctrl+\` | Create a vertical split |
+| `Ctrl+-` | Create a horizontal split |
+| `Ctrl+N` | Create a new pane with a vertical split |
+| `Ctrl+W` | Close the focused pane |
+| `Ctrl+S` | Toggle the system status panel |
+| `Ctrl+C` | Send interrupt to the focused pane process |
 
-## 项目结构
+## Project Structure
 
 ```text
 src/
-  app.rs      程序状态、pane 管理、焦点管理
-  input.rs    键盘事件到动作的转换
-  layout.rs   分屏布局树和布局测试
-  main.rs     终端初始化后的主循环
-  pane.rs     PTY、shell 进程、输出缓冲
-  system.rs   macOS/Linux 系统信息采集
-  tui.rs      ratatui 渲染
+  app.rs      Application state, pane management, focus management
+  input.rs    Keyboard input handling
+  layout.rs   Split tree layout and layout tests
+  main.rs     Terminal setup and main loop
+  pane.rs     PTY, shell process, output buffer
+  system.rs   macOS/Linux system information collection
+  tui.rs      ratatui rendering
 ```
 
-## 已知限制
+## Known Limitations
 
-- 这是 MVP，pane 内部不是完整终端模拟器，但使用 `vt100` 解析常见 ANSI 输出。
-- 当前没有命令面板。每个 pane 默认启动用户 shell，命令在 shell 中输入执行。
-- 关闭最后一个 pane 会被拒绝，以避免 UI 没有主工作区。
-- 不做 GPU、温度、风扇、抓包、远程主机管理或插件系统。
-- 某些系统指标在特定平台不可用时会显示 `N/A`。
+- PaneView is an MVP.
+- The pane renderer uses `vt100` for common ANSI output parsing, but it is not a complete terminal emulator.
+- Each pane starts the user's default shell. There is no command palette yet.
+- Closing the last pane is blocked.
+- GPU monitoring, temperature, fan speed, packet capture, remote host management, and plugins are not included.
+- Metrics that are unavailable on a platform are shown as `N/A`.
 
-## 验证
+## Development Checks
 
 ```bash
 cargo fmt
