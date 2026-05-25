@@ -2,7 +2,9 @@
 
 PaneView is a cross-platform Rust TUI for split PTY-backed shell panes and local system monitoring.
 
-## One-line install
+It is an MVP for macOS and Linux. It is not intended to replace tmux.
+
+## Install
 
 If Rust and Cargo are already installed:
 
@@ -10,10 +12,22 @@ If Rust and Cargo are already installed:
 cargo install --git https://github.com/HoshiyomiLusia/paneview.git --locked
 ```
 
-Then run:
+Run it:
 
 ```bash
 paneview
+```
+
+Update an existing install:
+
+```bash
+cargo install --git https://github.com/HoshiyomiLusia/paneview.git --locked --force
+```
+
+Uninstall:
+
+```bash
+cargo uninstall paneview
 ```
 
 ## Requirements
@@ -21,47 +35,36 @@ paneview
 - macOS or Linux
 - Rust 1.95+ with Cargo
 - `$HOME/.cargo/bin` in your `PATH`
-- A local shell such as `zsh`, `bash`, or `sh`
 - A UTF-8 capable terminal
+- A local shell such as `zsh`, `bash`, or `sh`
 
 No root permission is required.
 
-## Install Rust
-
-If Rust is not installed yet:
+If Rust is missing, install it with rustup:
 
 ```bash
 curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
-```
-
-Load Cargo into your current shell:
-
-```bash
 source "$HOME/.cargo/env"
 ```
 
-Check it:
+## Dependencies
 
-```bash
-cargo --version
-```
+PaneView has no extra system package dependency beyond a working Rust toolchain on macOS/Linux.
 
-## Project dependencies
-
-Rust crate dependencies are installed automatically by Cargo. You do not need to install them manually.
+Cargo installs Rust crate dependencies automatically during `cargo install` or `cargo build`.
 
 Main crates:
 
-- `ratatui` for TUI rendering
-- `crossterm` for terminal input and screen control
-- `portable-pty` for PTY-backed shell panes
-- `sysinfo` for system metrics
-- `if-addrs` for network interface addresses
-- `vt100` for terminal output parsing
-- `crossbeam-channel` for PTY output communication
-- `anyhow` for error handling
+- `ratatui`: TUI rendering
+- `crossterm`: terminal input and screen control
+- `portable-pty`: PTY-backed shell panes
+- `sysinfo`: CPU, memory, disk, network, and OS metrics
+- `if-addrs`: network interface addresses
+- `vt100`: ANSI terminal output parsing
+- `crossbeam-channel`: PTY output communication
+- `anyhow`: error handling
 
-## Build from source
+## Build From Source
 
 ```bash
 git clone https://github.com/HoshiyomiLusia/paneview.git
@@ -69,7 +72,7 @@ cd paneview
 cargo build --release
 ```
 
-Run the release binary:
+Run the local release binary:
 
 ```bash
 ./target/release/paneview
@@ -78,15 +81,15 @@ Run the release binary:
 Install from the local checkout:
 
 ```bash
-cargo install --path . --locked
+cargo install --path . --locked --force
 ```
 
 ## Features
 
 - Multiple split terminal panes
-- Vertical and horizontal splits
+- Vertical and horizontal pane splits
 - PTY-backed shell execution
-- Focus switching between panes
+- Keyboard focus switching between panes
 - Input forwarding to the focused pane
 - `Ctrl+C` sent to the focused pane process
 - Toggleable top dashboard with system status cards
@@ -105,8 +108,20 @@ cargo install --path . --locked
 | `Ctrl+-` | Create a horizontal split |
 | `Ctrl+N` | Create a new pane with a vertical split |
 | `Ctrl+W` | Close the focused pane |
-| `Ctrl+S` | Toggle the system status panel |
+| `Ctrl+S` | Toggle the dashboard |
 | `Ctrl+C` | Send interrupt to the focused pane process |
+
+## Layout
+
+PaneView uses a simple three-part TUI layout:
+
+```text
+dashboard
+terminal panes
+footer
+```
+
+The dashboard is hidden automatically in very small terminal windows.
 
 ## Development
 
@@ -118,9 +133,10 @@ cargo test
 
 ## Limitations
 
-- This is an MVP, not a tmux replacement.
+- This is an MVP.
 - Pane rendering uses `vt100` for common ANSI output, but it is not a complete terminal emulator.
 - Each pane starts the user's default shell.
 - Closing the last pane is blocked.
+- Mouse-clickable buttons are not implemented yet.
 - GPU, temperature, fan, packet capture, remote host management, and plugins are not included.
 - Unavailable system metrics are shown as `N/A`.
