@@ -44,6 +44,7 @@ PaneView requires:
 Prebuilt release targets:
 
 - `x86_64-unknown-linux-gnu`
+- `aarch64-unknown-linux-gnu`
 - `x86_64-apple-darwin`
 - `aarch64-apple-darwin`
 
@@ -125,7 +126,7 @@ PANEVIEW_INSTALL_DIR="$HOME/bin" sh -c 'curl -fsSL https://raw.githubusercontent
 Install a specific release:
 
 ```bash
-PANEVIEW_VERSION="v0.1.0" sh -c 'curl -fsSL https://raw.githubusercontent.com/HoshiyomiLusia/paneview/main/install.sh | sh'
+PANEVIEW_VERSION="v0.1.1" sh -c 'curl -fsSL https://raw.githubusercontent.com/HoshiyomiLusia/paneview/main/install.sh | sh'
 ```
 
 Build and install from source:

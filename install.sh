@@ -46,12 +46,8 @@ detect_target() {
     target="${arch_part}-${os_part}"
 
     case "$target" in
-        x86_64-unknown-linux-gnu | x86_64-apple-darwin | aarch64-apple-darwin)
+        x86_64-unknown-linux-gnu | aarch64-unknown-linux-gnu | x86_64-apple-darwin | aarch64-apple-darwin)
             printf '%s\n' "$target"
-            ;;
-        aarch64-unknown-linux-gnu)
-            echo "error: Linux arm64 release binaries are not published yet." >&2
-            exit 1
             ;;
         *)
             echo "error: unsupported target: $target" >&2
