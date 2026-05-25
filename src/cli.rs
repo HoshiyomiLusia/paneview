@@ -2,8 +2,9 @@ use std::process::{Command, Stdio};
 
 use anyhow::{Context, bail};
 
-const REPOSITORY: &str = "https://github.com/HoshiyomiLusia/paneview.git";
-const MAIN_REF: &str = "refs/heads/main";
+const LATEST_RELEASE_URL: &str = "https://github.com/HoshiyomiLusia/paneview/releases/latest";
+const INSTALL_SCRIPT_URL: &str =
+    "https://raw.githubusercontent.com/HoshiyomiLusia/paneview/main/install.sh";
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum CliAction {
@@ -50,8 +51,8 @@ Usage:
   paneview update
 
 Commands:
-  check-update   Compare this build with the latest GitHub main commit.
-  update         Reinstall PaneView from GitHub using Cargo.
+  check-update   Compare this build with the latest GitHub release.
+  update         Install the latest GitHub release binary.
 
 Options:
   -h, --help     Show this help.
@@ -62,17 +63,15 @@ Options:
 }
 
 fn check_update() -> anyhow::Result<()> {
-    let local = git_hash();
     println!("Current: {}", version_string());
 
-    let remote = remote_main_hash().context("failed to check remote main branch")?;
-    let remote_short = short_hash(&remote);
-    println!("Latest:  {} ({remote_short})", env!("CARGO_PKG_VERSION"));
+    let latest = latest_release_tag().context("failed to check latest GitHub release")?;
+    println!("Latest:  {latest}");
 
-    if local != "unknown" && remote.starts_with(local) {
+    if latest.trim_start_matches('v') == env!("CARGO_PKG_VERSION") {
         println!("PaneView is up to date.");
     } else {
-        println!("Update available or local build is not from the latest main commit.");
+        println!("Update available.");
         println!("Run: paneview update");
     }
 
@@ -80,42 +79,51 @@ fn check_update() -> anyhow::Result<()> {
 }
 
 fn update() -> anyhow::Result<()> {
-    println!("Updating PaneView from {REPOSITORY}");
-    let status = Command::new("cargo")
-        .args(["install", "--git", REPOSITORY, "--locked", "--force"])
+    println!("Updating PaneView from the latest GitHub release.");
+    let command = format!("curl -fsSL {INSTALL_SCRIPT_URL} | sh");
+    let status = Command::new("sh")
+        .args(["-c", &command])
         .stdin(Stdio::inherit())
         .stdout(Stdio::inherit())
         .stderr(Stdio::inherit())
         .status()
-        .context("failed to run cargo install")?;
+        .context("failed to run install script")?;
 
     if !status.success() {
-        bail!("cargo install failed with status {status}");
+        bail!("install script failed with status {status}");
     }
 
     println!("PaneView update completed.");
     Ok(())
 }
 
-fn remote_main_hash() -> anyhow::Result<String> {
-    let output = Command::new("git")
-        .args(["ls-remote", REPOSITORY, MAIN_REF])
+fn latest_release_tag() -> anyhow::Result<String> {
+    let output = Command::new("curl")
+        .args([
+            "-fsSLo",
+            "/dev/null",
+            "-w",
+            "%{url_effective}",
+            LATEST_RELEASE_URL,
+        ])
         .output()
-        .context("failed to run git ls-remote")?;
+        .context("failed to run curl")?;
 
     if !output.status.success() {
         let stderr = String::from_utf8_lossy(&output.stderr);
-        bail!("git ls-remote failed: {}", stderr.trim());
+        bail!("curl failed: {}", stderr.trim());
     }
 
-    let stdout = String::from_utf8(output.stdout).context("git output was not valid UTF-8")?;
-    let hash = stdout
-        .split_whitespace()
+    let effective_url =
+        String::from_utf8(output.stdout).context("curl output was not valid UTF-8")?;
+    let tag = effective_url
+        .trim_end_matches('/')
+        .rsplit('/')
         .next()
-        .filter(|value| !value.is_empty())
-        .context("remote main branch was not found")?;
+        .filter(|value| value.starts_with('v'))
+        .context("latest release tag was not found")?;
 
-    Ok(hash.to_string())
+    Ok(tag.to_string())
 }
 
 fn version_string() -> String {
@@ -124,8 +132,4 @@ fn version_string() -> String {
 
 fn git_hash() -> &'static str {
     option_env!("PANEVIEW_GIT_HASH").unwrap_or("unknown")
-}
-
-fn short_hash(hash: &str) -> String {
-    hash.chars().take(12).collect()
 }

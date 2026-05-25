@@ -14,7 +14,7 @@ Supported features:
 - Input forwarding to the focused pane.
 - `Ctrl+C` delivery to the focused pane process.
 - Toggleable system dashboard with CPU, memory, disk, network, OS, kernel, hostname, and uptime data.
-- Built-in version check and self-update command.
+- Built-in version check and release-based self-update command.
 
 ### Example
 
@@ -36,36 +36,43 @@ TODO: Add a sample image.
 PaneView requires:
 
 - macOS or Linux.
-- Rust 1.95 or newer.
-- Cargo.
-- Git.
+- `curl`.
+- `tar`.
 - A UTF-8 capable terminal.
 - A local Unix shell such as `zsh`, `bash`, or `sh`.
 
-Cargo downloads Rust crate dependencies automatically during installation or builds. The main crates are `ratatui`, `crossterm`, `portable-pty`, `sysinfo`, `if-addrs`, `vt100`, `crossbeam-channel`, and `anyhow`.
+Prebuilt release targets:
+
+- `x86_64-unknown-linux-gnu`
+- `x86_64-apple-darwin`
+- `aarch64-apple-darwin`
+
+Rust, Cargo, and Git are only required when building from source. Cargo downloads Rust crate dependencies automatically during source builds. The main crates are `ratatui`, `crossterm`, `portable-pty`, `sysinfo`, `if-addrs`, `vt100`, `crossbeam-channel`, and `anyhow`.
 
 ### macOS
 
 Check the environment:
 
 ```bash
-rustc --version
-cargo --version
-git --version
-echo "$PATH" | tr ':' '\n' | grep -x "$HOME/.cargo/bin"
+uname -s
+uname -m
+curl --version
+tar --version
+echo "$PATH" | tr ':' '\n' | grep -E '(/usr/local/bin|/opt/homebrew/bin|/\.local/bin)$'
 ```
 
-Install Rust and Cargo if they are missing:
+Install command line tools if `curl` or `tar` is missing:
+
+```bash
+xcode-select --install
+```
+
+For source builds, also install Rust and Git:
 
 ```bash
 curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
 source "$HOME/.cargo/env"
-```
-
-Install Git if it is missing:
-
-```bash
-xcode-select --install
+git --version || xcode-select --install
 ```
 
 ### Linux
@@ -73,39 +80,59 @@ xcode-select --install
 Check the environment:
 
 ```bash
-rustc --version
-cargo --version
-git --version
-echo "$PATH" | tr ':' '\n' | grep -x "$HOME/.cargo/bin"
+uname -s
+uname -m
+curl --version
+tar --version
+echo "$PATH" | tr ':' '\n' | grep -E '(/usr/local/bin|/\.local/bin)$'
 ```
 
-Install Rust and Cargo if they are missing:
+Install `curl` and `tar` with your distribution package manager. For Debian or Ubuntu:
 
 ```bash
+sudo apt update
+sudo apt install -y curl tar
+```
+
+For source builds, also install Rust and Git:
+
+```bash
+sudo apt install -y git
 curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
 source "$HOME/.cargo/env"
 ```
 
-Install Git with your distribution package manager. For Debian or Ubuntu:
-
-```bash
-sudo apt update
-sudo apt install -y git
-```
-
 ### Windows
 
-Windows is not a supported target for this MVP. Use macOS or Linux, or run PaneView in a Linux environment with Rust, Cargo, Git, and a Unix shell available.
+Windows is not a supported target for this MVP. Use macOS or Linux, or run PaneView in a Linux environment with `curl`, `tar`, and a Unix shell available.
 
 ## Project Installation
 
-Install PaneView after the environment dependencies are ready:
+Install the latest prebuilt release:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/HoshiyomiLusia/paneview/main/install.sh | sh
+```
+
+The installer downloads a GitHub Release archive, verifies its checksum when possible, and installs the `paneview` binary. It uses `/usr/local/bin` when that directory is writable; otherwise it uses `$HOME/.local/bin`.
+
+Install to a custom directory:
+
+```bash
+PANEVIEW_INSTALL_DIR="$HOME/bin" sh -c 'curl -fsSL https://raw.githubusercontent.com/HoshiyomiLusia/paneview/main/install.sh | sh'
+```
+
+Install a specific release:
+
+```bash
+PANEVIEW_VERSION="v0.1.0" sh -c 'curl -fsSL https://raw.githubusercontent.com/HoshiyomiLusia/paneview/main/install.sh | sh'
+```
+
+Build and install from source:
 
 ```bash
 cargo install --git https://github.com/HoshiyomiLusia/paneview.git --locked
 ```
-
-This installs the `paneview` command into Cargo's binary directory, usually `$HOME/.cargo/bin`.
 
 Build from a local checkout:
 
@@ -124,8 +151,10 @@ cargo install --path . --locked --force
 Uninstall:
 
 ```bash
-cargo uninstall paneview
+rm -f "$HOME/.local/bin/paneview"
 ```
+
+If PaneView was installed with Cargo, uninstall it with `cargo uninstall paneview`.
 
 ## Usage
 
@@ -141,13 +170,13 @@ Show the installed version and build commit:
 paneview --version
 ```
 
-Check whether the installed build matches the latest GitHub `main` commit:
+Check whether the installed build matches the latest GitHub release:
 
 ```bash
 paneview check-update
 ```
 
-Update PaneView through Cargo:
+Update PaneView from the latest prebuilt GitHub release:
 
 ```bash
 paneview update
