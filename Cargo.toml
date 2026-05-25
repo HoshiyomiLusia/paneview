@@ -1,0 +1,14 @@
+[package]
+name = "paneview"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+anyhow = "1.0.102"
+crossbeam-channel = "0.5.15"
+crossterm = "0.29.0"
+if-addrs = "0.15.0"
+portable-pty = "0.9.0"
+ratatui = "0.30.0"
+sysinfo = "0.39.2"
+vt100 = "0.16.2"
