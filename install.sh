@@ -63,11 +63,16 @@ choose_install_dir() {
     fi
 
     if command -v "$BIN_NAME" >/dev/null 2>&1; then
-        current_dir="$(dirname "$(command -v "$BIN_NAME")")"
+        current_path="$(command -v "$BIN_NAME")"
+        current_dir="$(dirname "$current_path")"
         if [ -w "$current_dir" ]; then
             printf '%s\n' "$current_dir"
             return
         fi
+
+        echo "error: existing $BIN_NAME was found at $current_path, but $current_dir is not writable" >&2
+        echo "rerun with the required permissions or set PANEVIEW_INSTALL_DIR explicitly" >&2
+        exit 1
     fi
 
     if [ -d /usr/local/bin ] && [ -w /usr/local/bin ]; then
@@ -123,14 +128,24 @@ require_cmd mkdir
 require_cmd chmod
 require_cmd cp
 require_cmd mv
+require_cmd rm
+require_cmd mktemp
+require_cmd dirname
 
 target="$(detect_target)"
 archive="paneview-${target}.tar.gz"
 install_dir="$(choose_install_dir)"
 url="$(download_base_url "$target")"
+staged_path=""
 
 tmp_dir="$(mktemp -d 2>/dev/null || mktemp -d -t paneview)"
-trap 'rm -rf "$tmp_dir"' EXIT INT TERM
+cleanup() {
+    rm -rf "$tmp_dir"
+    if [ -n "$staged_path" ] && [ -f "$staged_path" ]; then
+        rm -f "$staged_path"
+    fi
+}
+trap cleanup EXIT INT TERM
 
 echo "Downloading $url"
 curl -fL "$url" -o "$tmp_dir/$archive"
@@ -148,6 +163,11 @@ if [ ! -f "$tmp_dir/$BIN_NAME" ]; then
 fi
 
 mkdir -p "$install_dir"
+if [ ! -w "$install_dir" ]; then
+    echo "error: install directory is not writable: $install_dir" >&2
+    exit 1
+fi
+
 chmod 755 "$tmp_dir/$BIN_NAME"
 
 target_path="$install_dir/$BIN_NAME"
@@ -157,6 +177,11 @@ chmod 755 "$staged_path"
 mv -f "$staged_path" "$target_path"
 
 echo "Installed $BIN_NAME to $target_path"
+if installed_version="$("$target_path" --version 2>/dev/null)"; then
+    echo "$installed_version"
+else
+    echo "warning: installed binary could not be executed for version verification" >&2
+fi
 
 case ":$PATH:" in
     *":$install_dir:"*) ;;
