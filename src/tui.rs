@@ -18,6 +18,16 @@ use crate::layout::PaneId;
 use crate::pane::Pane;
 use crate::system::{SystemSnapshot, format_bytes, format_duration};
 
+const BG: Color = Color::Black;
+const TEXT: Color = Color::LightGreen;
+const TEXT_DIM: Color = Color::Green;
+const BORDER: Color = Color::Green;
+const BORDER_DIM: Color = Color::DarkGray;
+const ACCENT: Color = Color::LightGreen;
+const WARN: Color = Color::Yellow;
+const BAD: Color = Color::Red;
+const TRACE: Color = Color::Rgb(70, 220, 120);
+
 pub fn init_terminal() -> anyhow::Result<Terminal<CrosstermBackend<Stdout>>> {
     enable_raw_mode()?;
     let mut stdout = stdout();
@@ -40,7 +50,12 @@ pub fn draw(frame: &mut Frame<'_>, app: &App) {
     let regions = Regions::from(area, app.show_system_panel());
 
     if let Some(system_area) = regions.system {
-        draw_system(frame, system_area, app.system_snapshot());
+        draw_system(
+            frame,
+            system_area,
+            app.system_snapshot(),
+            app.animation_tick(),
+        );
     }
 
     draw_panes(frame, regions.panes, app);
@@ -135,11 +150,9 @@ fn draw_panes(frame: &mut Frame<'_>, area: Rect, app: &App) {
 
 fn draw_pane(frame: &mut Frame<'_>, area: Rect, pane: &Pane, focused: bool) {
     let border_style = if focused {
-        Style::default()
-            .fg(Color::Yellow)
-            .add_modifier(Modifier::BOLD)
+        Style::default().fg(ACCENT).add_modifier(Modifier::BOLD)
     } else {
-        Style::default().fg(Color::DarkGray)
+        Style::default().fg(BORDER_DIM)
     };
     let state = if pane.is_alive() {
         "running".to_string()
@@ -155,17 +168,28 @@ fn draw_pane(frame: &mut Frame<'_>, area: Rect, pane: &Pane, focused: bool) {
                 .title(title)
                 .border_style(border_style),
         )
+        .style(Style::default().fg(TEXT).bg(BG))
         .wrap(Wrap { trim: false });
 
     frame.render_widget(paragraph, area);
 }
 
-fn draw_system(frame: &mut Frame<'_>, area: Rect, snapshot: &SystemSnapshot) {
+fn draw_system(frame: &mut Frame<'_>, area: Rect, snapshot: &SystemSnapshot, tick: u64) {
     if area.width == 0 || area.height == 0 {
         return;
     }
 
-    let block = Block::default().borders(Borders::ALL).title(" dashboard ");
+    let block = Block::default()
+        .borders(Borders::ALL)
+        .title(Line::from(vec![
+            Span::styled(
+                " dashboard ",
+                Style::default().fg(ACCENT).add_modifier(Modifier::BOLD),
+            ),
+            Span::styled(activity_indicator(tick), Style::default().fg(TEXT_DIM)),
+        ]))
+        .border_style(Style::default().fg(BORDER))
+        .style(Style::default().bg(BG));
     let inner = block.inner(area);
     frame.render_widget(block, area);
 
@@ -173,34 +197,46 @@ fn draw_system(frame: &mut Frame<'_>, area: Rect, snapshot: &SystemSnapshot) {
         return;
     }
 
-    if inner.height < 8 {
-        draw_compact_dashboard(frame, inner, snapshot);
+    draw_scanline(frame, inner, tick);
+    let content = Rect::new(
+        inner.x,
+        inner.y.saturating_add(1),
+        inner.width,
+        inner.height.saturating_sub(1),
+    );
+
+    if content.height == 0 {
         return;
     }
 
-    let top_height = (inner.height / 2).max(4);
-    let top = Rect::new(inner.x, inner.y, inner.width, top_height);
+    if content.height < 8 {
+        draw_compact_dashboard(frame, content, snapshot, tick);
+        return;
+    }
+
+    let top_height = (content.height / 2).max(4);
+    let top = Rect::new(content.x, content.y, content.width, top_height);
     let bottom = Rect::new(
-        inner.x,
-        inner.y.saturating_add(top_height),
-        inner.width,
-        inner.height.saturating_sub(top_height),
+        content.x,
+        content.y.saturating_add(top_height),
+        content.width,
+        content.height.saturating_sub(top_height),
     );
 
     let [system_area, cpu_area, memory_area] = split_columns(top, 28, 36);
-    draw_system_card(frame, system_area, snapshot);
+    draw_system_card(frame, system_area, snapshot, tick);
     draw_cpu_card(frame, cpu_area, snapshot);
     draw_memory_card(frame, memory_area, snapshot);
 
     if bottom.height > 0 {
         let [network_area, disk_area, interface_area] = split_columns(bottom, 32, 40);
-        draw_network_card(frame, network_area, snapshot);
+        draw_network_card(frame, network_area, snapshot, tick);
         draw_disk_card(frame, disk_area, snapshot);
         draw_interfaces_card(frame, interface_area, snapshot);
     }
 }
 
-fn draw_compact_dashboard(frame: &mut Frame<'_>, area: Rect, snapshot: &SystemSnapshot) {
+fn draw_compact_dashboard(frame: &mut Frame<'_>, area: Rect, snapshot: &SystemSnapshot, tick: u64) {
     let mut y = area.y;
     draw_line(
         frame,
@@ -222,11 +258,17 @@ fn draw_compact_dashboard(frame: &mut Frame<'_>, area: Rect, snapshot: &SystemSn
         "load",
         &snapshot.cpu_history,
         Some(100),
-        Color::Green,
+        ACCENT,
+    );
+    draw_line(
+        frame,
+        area,
+        &mut y,
+        truncate(&animated_flow(tick), area.width as usize),
     );
 }
 
-fn draw_system_card(frame: &mut Frame<'_>, area: Rect, snapshot: &SystemSnapshot) {
+fn draw_system_card(frame: &mut Frame<'_>, area: Rect, snapshot: &SystemSnapshot, tick: u64) {
     let inner = draw_panel(frame, area, "System");
     let mut y = inner.y;
     draw_line(
@@ -264,21 +306,14 @@ fn draw_system_card(frame: &mut Frame<'_>, area: Rect, snapshot: &SystemSnapshot
         frame,
         inner,
         &mut y,
-        truncate("[host]--[net]--[disk]", inner.width as usize),
+        truncate(&animated_route(tick), inner.width as usize),
     );
 }
 
 fn draw_cpu_card(frame: &mut Frame<'_>, area: Rect, snapshot: &SystemSnapshot) {
     let inner = draw_panel(frame, area, "CPU");
     let mut y = inner.y;
-    draw_gauge_row(
-        frame,
-        inner,
-        &mut y,
-        "total",
-        snapshot.cpu_usage,
-        Color::LightGreen,
-    );
+    draw_gauge_row(frame, inner, &mut y, "total", snapshot.cpu_usage, ACCENT);
     draw_sparkline_row(
         frame,
         inner,
@@ -286,7 +321,7 @@ fn draw_cpu_card(frame: &mut Frame<'_>, area: Rect, snapshot: &SystemSnapshot) {
         "trend",
         &snapshot.cpu_history,
         Some(100),
-        Color::Green,
+        TRACE,
     );
 
     for core in snapshot
@@ -311,14 +346,7 @@ fn draw_cpu_card(frame: &mut Frame<'_>, area: Rect, snapshot: &SystemSnapshot) {
 fn draw_memory_card(frame: &mut Frame<'_>, area: Rect, snapshot: &SystemSnapshot) {
     let inner = draw_panel(frame, area, "Memory");
     let mut y = inner.y;
-    draw_gauge_row(
-        frame,
-        inner,
-        &mut y,
-        "RAM",
-        snapshot.memory_percent,
-        Color::LightBlue,
-    );
+    draw_gauge_row(frame, inner, &mut y, "RAM", snapshot.memory_percent, ACCENT);
     draw_sparkline_row(
         frame,
         inner,
@@ -326,7 +354,7 @@ fn draw_memory_card(frame: &mut Frame<'_>, area: Rect, snapshot: &SystemSnapshot
         "trend",
         &snapshot.memory_history,
         Some(100),
-        Color::Blue,
+        TEXT_DIM,
     );
     draw_line(
         frame,
@@ -353,7 +381,7 @@ fn draw_memory_card(frame: &mut Frame<'_>, area: Rect, snapshot: &SystemSnapshot
     );
 }
 
-fn draw_network_card(frame: &mut Frame<'_>, area: Rect, snapshot: &SystemSnapshot) {
+fn draw_network_card(frame: &mut Frame<'_>, area: Rect, snapshot: &SystemSnapshot, tick: u64) {
     let inner = draw_panel(frame, area, "Network");
     let mut y = inner.y;
     draw_line(
@@ -373,7 +401,7 @@ fn draw_network_card(frame: &mut Frame<'_>, area: Rect, snapshot: &SystemSnapsho
         "down",
         &snapshot.rx_history,
         None,
-        Color::Cyan,
+        ACCENT,
     );
     draw_sparkline_row(
         frame,
@@ -382,14 +410,14 @@ fn draw_network_card(frame: &mut Frame<'_>, area: Rect, snapshot: &SystemSnapsho
         "up",
         &snapshot.tx_history,
         None,
-        Color::Magenta,
+        TRACE,
     );
     draw_gap(&mut y, inner.bottom());
     draw_line(
         frame,
         inner,
         &mut y,
-        truncate("[pane]=>[iface]=>[lan]", inner.width as usize),
+        truncate(&animated_flow(tick), inner.width as usize),
     );
 }
 
@@ -416,7 +444,7 @@ fn draw_disk_card(frame: &mut Frame<'_>, area: Rect, snapshot: &SystemSnapshot) 
                     )
                 })
                 .unwrap_or_else(|| "N/A".to_string()),
-            Color::Yellow,
+            WARN,
         );
     }
 }
@@ -426,9 +454,9 @@ fn draw_interfaces_card(frame: &mut Frame<'_>, area: Rect, snapshot: &SystemSnap
     let mut y = inner.y;
     for interface in snapshot.interfaces.iter().take(inner.height as usize) {
         let state = match interface.is_up {
-            Some(true) => Span::styled("up", Style::default().fg(Color::Green)),
-            Some(false) => Span::styled("down", Style::default().fg(Color::Red)),
-            None => Span::styled("N/A", Style::default().fg(Color::DarkGray)),
+            Some(true) => Span::styled("up", Style::default().fg(ACCENT)),
+            Some(false) => Span::styled("down", Style::default().fg(BAD)),
+            None => Span::styled("N/A", Style::default().fg(BORDER_DIM)),
         };
         let ips = if interface.ips.is_empty() {
             "N/A".to_string()
@@ -458,7 +486,13 @@ fn draw_panel(frame: &mut Frame<'_>, area: Rect, title: &str) -> Rect {
 
     let block = Block::default()
         .borders(Borders::ALL)
-        .title(format!(" {title} "));
+        .title(Line::from(vec![
+            Span::styled(" ", Style::default()),
+            Span::styled(title.to_string(), Style::default().fg(ACCENT)),
+            Span::styled(" ", Style::default()),
+        ]))
+        .border_style(Style::default().fg(BORDER_DIM))
+        .style(Style::default().bg(BG));
     let inner = block.inner(area);
     frame.render_widget(block, area);
     inner
@@ -508,30 +542,46 @@ fn draw_status(frame: &mut Frame<'_>, area: Rect, app: &App) {
         app.status(),
     );
 
-    let lines = status_lines(&info, area.height, area.width);
-    let paragraph =
-        Paragraph::new(lines).style(Style::default().bg(Color::DarkGray).fg(Color::White));
-    frame.render_widget(paragraph, area);
+    let content = if area.height > 1 {
+        frame.render_widget(
+            Paragraph::new(scanline(area.width as usize, app.animation_tick()))
+                .style(Style::default().fg(BORDER).bg(BG)),
+            Rect::new(area.x, area.y, area.width, 1),
+        );
+        Rect::new(
+            area.x,
+            area.y.saturating_add(1),
+            area.width,
+            area.height.saturating_sub(1),
+        )
+    } else {
+        area
+    };
+
+    let lines = status_lines(&info, content.height, content.width, app.animation_tick());
+    let paragraph = Paragraph::new(lines).style(Style::default().bg(BG).fg(ACCENT));
+    frame.render_widget(paragraph, content);
 }
 
 fn pane_label(id: PaneId) -> String {
     id.to_string()
 }
 
-fn status_lines(info: &str, height: u16, width: u16) -> Vec<Line<'static>> {
+fn status_lines(info: &str, height: u16, width: u16, tick: u64) -> Vec<Line<'static>> {
     let width = width as usize;
+    let pulse = activity_indicator(tick);
     let lines = match height {
         0 => Vec::new(),
         1 => vec![format!(
-            "{} | ^Q quit | ^H/J/K/L focus | ^\\ /^- split | ^N new | ^W close | ^S sys",
-            info
+            "{} {} | ^Q quit | ^H/J/K/L focus | ^\\ /^- split | ^N new | ^W close | ^S sys",
+            pulse, info
         )],
         2 => vec![
-            info.to_string(),
+            format!("{} {}", pulse, info),
             "Keys: ^Q quit | ^H/J/K/L focus | ^\\ Vsplit | ^- Hsplit | ^N new | ^W close | ^S sys | ^C interrupt".to_string(),
         ],
         _ => vec![
-            info.to_string(),
+            format!("{} {}", pulse, info),
             "Keys: Ctrl+Q quit | Ctrl+H/J/K/L focus | Ctrl+\\ vertical split | Ctrl+- horizontal split".to_string(),
             "      Ctrl+N new pane | Ctrl+W close pane | Ctrl+S system panel | Ctrl+C send interrupt".to_string(),
         ],
@@ -551,7 +601,10 @@ fn draw_rich_line(frame: &mut Frame<'_>, area: Rect, y: &mut u16, line: Line<'_>
     if *y >= area.bottom() {
         return;
     }
-    frame.render_widget(Paragraph::new(line), Rect::new(area.x, *y, area.width, 1));
+    frame.render_widget(
+        Paragraph::new(line).style(Style::default().fg(TEXT).bg(BG)),
+        Rect::new(area.x, *y, area.width, 1),
+    );
     *y = y.saturating_add(1);
 }
 
@@ -594,7 +647,8 @@ fn draw_gauge_row_with_text(
     let gauge_area = Rect::new(area.x.saturating_add(label_width), *y, gauge_width, 1);
 
     frame.render_widget(
-        Paragraph::new(truncate(label, label_width as usize)),
+        Paragraph::new(truncate(label, label_width as usize))
+            .style(Style::default().fg(TEXT_DIM).bg(BG)),
         label_area,
     );
 
@@ -606,7 +660,8 @@ fn draw_gauge_row_with_text(
             .ratio(ratio)
             .label(gauge_text)
             .use_unicode(true)
-            .gauge_style(Style::default().fg(color).bg(Color::DarkGray));
+            .style(Style::default().fg(TEXT).bg(BG))
+            .gauge_style(Style::default().fg(color).bg(BORDER_DIM));
         frame.render_widget(gauge, gauge_area);
     }
 
@@ -629,7 +684,8 @@ fn draw_sparkline_row(
     let label_width = area.width.min(7);
     let graph_width = area.width.saturating_sub(label_width);
     frame.render_widget(
-        Paragraph::new(truncate(label, label_width as usize)),
+        Paragraph::new(truncate(label, label_width as usize))
+            .style(Style::default().fg(TEXT_DIM).bg(BG)),
         Rect::new(area.x, *y, label_width, 1),
     );
 
@@ -647,6 +703,64 @@ fn draw_sparkline_row(
     }
 
     *y = y.saturating_add(1);
+}
+
+fn draw_scanline(frame: &mut Frame<'_>, area: Rect, tick: u64) {
+    if area.width == 0 || area.height == 0 {
+        return;
+    }
+
+    frame.render_widget(
+        Paragraph::new(scanline(area.width as usize, tick))
+            .style(Style::default().fg(TRACE).bg(BG)),
+        Rect::new(area.x, area.y, area.width, 1),
+    );
+}
+
+fn scanline(width: usize, tick: u64) -> String {
+    if width == 0 {
+        return String::new();
+    }
+
+    let mut chars = vec!['-'; width];
+    let pos = ((tick / 2) as usize) % width;
+    let pulse = ['=', '=', '>', '*', '>', '=', '='];
+
+    for (offset, ch) in pulse.iter().enumerate() {
+        let index = (pos + offset).min(width - 1);
+        chars[index] = *ch;
+    }
+
+    chars.into_iter().collect()
+}
+
+fn activity_indicator(tick: u64) -> &'static str {
+    match (tick / 8) % 4 {
+        0 => "|",
+        1 => "/",
+        2 => "-",
+        _ => "\\",
+    }
+}
+
+fn animated_route(tick: u64) -> String {
+    let mut chars: Vec<char> = "[host]--[net]--[disk]".chars().collect();
+    let path = [7, 8, 14, 15];
+    let index = path[((tick / 10) as usize) % path.len()];
+    if let Some(ch) = chars.get_mut(index) {
+        *ch = '*';
+    }
+    chars.into_iter().collect()
+}
+
+fn animated_flow(tick: u64) -> String {
+    let mut chars: Vec<char> = "[pane]=>[iface]=>[lan]".chars().collect();
+    let path = [7, 8, 16, 17];
+    let index = path[((tick / 7) as usize) % path.len()];
+    if let Some(ch) = chars.get_mut(index) {
+        *ch = '*';
+    }
+    chars.into_iter().collect()
 }
 
 fn short_mount(mount: &str) -> String {

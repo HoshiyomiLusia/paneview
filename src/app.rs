@@ -26,6 +26,7 @@ pub struct App {
     system: SystemMonitor,
     last_rects: HashMap<PaneId, Rect>,
     status: String,
+    animation_tick: u64,
 }
 
 impl App {
@@ -45,10 +46,12 @@ impl App {
             system: SystemMonitor::new(),
             last_rects: HashMap::new(),
             status: "normal".to_string(),
+            animation_tick: 0,
         })
     }
 
     pub fn tick(&mut self) {
+        self.animation_tick = self.animation_tick.wrapping_add(1);
         for pane in self.panes.values_mut() {
             pane.drain_output();
         }
@@ -121,6 +124,10 @@ impl App {
 
     pub fn status(&self) -> &str {
         &self.status
+    }
+
+    pub fn animation_tick(&self) -> u64 {
+        self.animation_tick
     }
 
     pub fn pane_count(&self) -> usize {

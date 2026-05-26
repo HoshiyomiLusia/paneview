@@ -126,7 +126,7 @@ PANEVIEW_INSTALL_DIR="$HOME/bin" sh -c 'curl -fsSL https://raw.githubusercontent
 Install a specific release:
 
 ```bash
-PANEVIEW_VERSION="v0.1.2" sh -c 'curl -fsSL https://raw.githubusercontent.com/HoshiyomiLusia/paneview/main/install.sh | sh'
+PANEVIEW_VERSION="v0.1.3" sh -c 'curl -fsSL https://raw.githubusercontent.com/HoshiyomiLusia/paneview/main/install.sh | sh'
 ```
 
 Build and install from source:
