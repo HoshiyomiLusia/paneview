@@ -641,7 +641,31 @@ fn draw_filesystem(frame: &mut Frame<'_>, area: Rect) {
 
 fn draw_keyboard(frame: &mut Frame<'_>, area: Rect, app: &App) {
     let inner = draw_panel(frame, area, "Keyboard");
-    let rows: [&[&str]; 5] = [
+    let alpha_rows: [&[&str]; 5] = [
+        &[
+            "ESC", "~", "1", "2", "3", "4", "5", "6", "7", "8", "9", "0", "-", "=",
+        ],
+        &[
+            "TAB", "Q", "W", "E", "R", "T", "Y", "U", "I", "O", "P", "{", "}", "\\",
+        ],
+        &[
+            "CAPS", "A", "S", "D", "F", "G", "H", "J", "K", "L", ";", "'",
+        ],
+        &["SHIFT", "Z", "X", "C", "V", "B", "N", "M", ",", ".", "/"],
+        &["CTRL", "FN", "CMD", "ALT", "SPACE", "ALTGR", "MENU", "CTRL"],
+    ];
+
+    if inner.width >= 74 {
+        let chunks = Layout::default()
+            .direction(Direction::Horizontal)
+            .constraints([Constraint::Min(40), Constraint::Length(19)])
+            .split(inner);
+        draw_alpha_keys(frame, chunks[0], &alpha_rows, app);
+        draw_command_keys(frame, chunks[1], app);
+        return;
+    }
+
+    let compact_rows: [&[&str]; 5] = [
         &[
             "ESC", "~", "1", "2", "3", "4", "5", "6", "7", "8", "9", "0", "-", "=", "BACK",
         ],
@@ -654,22 +678,90 @@ fn draw_keyboard(frame: &mut Frame<'_>, area: Rect, app: &App) {
         &[
             "SHIFT", "Z", "X", "C", "V", "B", "N", "M", ",", ".", "/", "SHIFT",
         ],
-        &[
-            "CTRL", "FN", "CMD", "ALT", "SPACE", "ALTGR", "MENU", "CTRL", "UP", "LEFT", "DOWN",
-            "RIGHT",
-        ],
+        &["CTRL", "FN", "CMD", "ALT", "SPACE", "ALTGR", "MENU", "CTRL"],
     ];
 
-    let max_rows = inner.height.min(rows.len() as u16);
+    draw_alpha_keys(frame, inner, &compact_rows, app);
+}
+
+fn draw_alpha_keys(frame: &mut Frame<'_>, area: Rect, rows: &[&[&str]], app: &App) {
+    let max_rows = area.height.min(rows.len() as u16);
     for (offset, row) in rows.iter().take(max_rows as usize).enumerate() {
-        draw_key_row(
-            frame,
-            inner,
-            inner.y.saturating_add(offset as u16),
-            row,
-            app,
-        );
+        draw_key_row(frame, area, area.y.saturating_add(offset as u16), row, app);
     }
+}
+
+fn draw_command_keys(frame: &mut Frame<'_>, area: Rect, app: &App) {
+    if area.height == 0 {
+        return;
+    }
+
+    draw_key_row(frame, area, area.y, &["BACK"], app);
+    if area.height > 1 {
+        draw_key_row(frame, area, area.y.saturating_add(1), &["ENTER"], app);
+    }
+    if area.height > 3 {
+        draw_key_row(frame, area, area.y.saturating_add(3), &["SHIFT"], app);
+    }
+    if area.height > 4 {
+        draw_arrow_cluster(frame, area, area.y.saturating_add(4), app);
+    }
+}
+
+fn draw_arrow_cluster(frame: &mut Frame<'_>, area: Rect, y: u16, app: &App) {
+    if y >= area.bottom() {
+        return;
+    }
+
+    let cell_width = (area.width / 3).max(1);
+    let widths = [
+        cell_width,
+        cell_width,
+        area.width.saturating_sub(cell_width.saturating_mul(2)),
+    ];
+    let x0 = area.x;
+    let x1 = area.x.saturating_add(widths[0]);
+    let x2 = x1.saturating_add(widths[1]);
+
+    draw_key_cell(frame, Rect::new(x1, y, widths[1], 1), "UP", app);
+
+    if y.saturating_add(1) < area.bottom() {
+        let y = y.saturating_add(1);
+        draw_key_cell(frame, Rect::new(x0, y, widths[0], 1), "LEFT", app);
+        draw_key_cell(frame, Rect::new(x1, y, widths[1], 1), "DOWN", app);
+        draw_key_cell(frame, Rect::new(x2, y, widths[2], 1), "RIGHT", app);
+    }
+}
+
+fn draw_key_cell(frame: &mut Frame<'_>, area: Rect, label: &str, app: &App) {
+    if area.width == 0 || area.height == 0 {
+        return;
+    }
+
+    let text = centered_key_text(label, area.width as usize);
+    let style = if app.is_key_active(label) {
+        Style::default()
+            .fg(BG)
+            .bg(TEXT)
+            .add_modifier(Modifier::BOLD)
+    } else {
+        Style::default().fg(TEXT).bg(BG)
+    };
+    frame.render_widget(
+        Paragraph::new(text).style(style),
+        Rect::new(area.x, area.y, area.width, 1),
+    );
+}
+
+fn centered_key_text(label: &str, width: usize) -> String {
+    let value = format!(" {label} ");
+    if value.len() >= width {
+        return truncate(&value, width);
+    }
+
+    let left = (width - value.len()) / 2;
+    let right = width - value.len() - left;
+    format!("{}{}{}", " ".repeat(left), value, " ".repeat(right))
 }
 
 fn draw_key_row(frame: &mut Frame<'_>, area: Rect, y: u16, labels: &[&str], app: &App) {

@@ -570,7 +570,7 @@
       }
 
       .key-row.lower {
-        grid-template-columns: 118px repeat(10, minmax(34px, 1fr)) 104px;
+        grid-template-columns: 118px repeat(10, minmax(34px, 1fr));
       }
 
       .key-row.bottom {
@@ -616,7 +616,7 @@
 
       .command-keys {
         display: grid;
-        grid-template-rows: 30px 76px 1fr;
+        grid-template-rows: 30px 64px 30px 1fr;
         gap: 10px;
       }
 
@@ -641,6 +641,22 @@
 
       .arrow-pad .key:first-child {
         grid-column: 2;
+        grid-row: 1;
+      }
+
+      .arrow-pad .key:nth-child(2) {
+        grid-column: 1;
+        grid-row: 2;
+      }
+
+      .arrow-pad .key:nth-child(3) {
+        grid-column: 2;
+        grid-row: 2;
+      }
+
+      .arrow-pad .key:nth-child(4) {
+        grid-column: 3;
+        grid-row: 2;
       }
 
       .arrow-pad .key {
@@ -766,9 +782,9 @@
           </div>
           <div class="scan"></div>
           <div class="terminal-body">
-            <pre><span class="muted">Welcome to PaneView v0.1.4 - PTY terminal workspace</span>
+            <pre><span class="muted">Welcome to PaneView v0.1.5 - PTY terminal workspace</span>
 <span class="prompt">~/PaneView</span> $ paneview --version
-paneview 0.1.4 (local-preview)
+paneview 0.1.5 (local-preview)
 
 <span class="prompt">~/PaneView</span> $ cargo test
 running 3 tests
@@ -925,7 +941,7 @@ test layout::removing_a_leaf_collapses_its_parent ... ok
               <div class="key-row lower">
                 <div class="key" data-code="ShiftLeft">SHIFT</div><div class="key" data-code="KeyZ">Z</div><div class="key" data-code="KeyX">X</div><div class="key" data-code="KeyC">C</div>
                 <div class="key" data-code="KeyV">V</div><div class="key" data-code="KeyB">B</div><div class="key" data-code="KeyN">N</div><div class="key" data-code="KeyM">M</div>
-                <div class="key" data-code="Comma">,</div><div class="key" data-code="Period">.</div><div class="key" data-code="Slash">/</div><div class="key" data-code="ShiftRight">SHIFT</div>
+                <div class="key" data-code="Comma">,</div><div class="key" data-code="Period">.</div><div class="key" data-code="Slash">/</div>
               </div>
               <div class="key-row bottom">
                 <div class="key" data-code="ControlLeft">CTRL</div><div class="key" data-code="Fn">FN</div><div class="key" data-code="MetaLeft">CMD</div><div class="key" data-code="AltLeft">ALT</div>
@@ -935,6 +951,7 @@ test layout::removing_a_leaf_collapses_its_parent ... ok
             <div class="command-keys">
               <div class="key" data-code="Backspace">BACK</div>
               <div class="enter-key" data-code="Enter">ENTER</div>
+              <div class="key" data-code="ShiftRight">SHIFT</div>
               <div class="arrow-pad">
                 <div class="key dim" data-code="ArrowUp">▲</div>
                 <div class="key dim" data-code="ArrowLeft">◀</div>
