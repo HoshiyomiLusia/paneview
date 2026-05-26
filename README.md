@@ -90,7 +90,7 @@ PANEVIEW_INSTALL_DIR="$HOME/bin" sh -c 'curl -fsSL https://raw.githubusercontent
 Install a specific release:
 
 ```bash
-PANEVIEW_VERSION="v0.1.8" sh -c 'curl -fsSL https://raw.githubusercontent.com/HoshiyomiLusia/paneview/main/install.sh | sh'
+PANEVIEW_VERSION="v0.1.7" sh -c 'curl -fsSL https://raw.githubusercontent.com/HoshiyomiLusia/paneview/main/install.sh | sh'
 ```
 
 ## Usage
