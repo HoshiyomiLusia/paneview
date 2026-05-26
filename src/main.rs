@@ -62,6 +62,7 @@ fn drain_events(app: &mut App) -> anyhow::Result<()> {
     while event::poll(Duration::from_millis(0))? {
         let event = event::read()?;
         if let Event::Key(key) = event {
+            app.record_key_event(key);
             if let Some(action) = event_to_action(key) {
                 app.handle_action(action)?;
             }

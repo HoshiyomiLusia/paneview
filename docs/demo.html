@@ -1,0 +1,1002 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>PaneView eDEX-style Demo</title>
+    <style>
+      :root {
+        color-scheme: dark;
+        --bg: #080d12;
+        --panel: rgba(8, 14, 19, 0.94);
+        --panel-soft: rgba(13, 24, 30, 0.74);
+        --line: #8db9bf;
+        --line-dim: rgba(141, 185, 191, 0.34);
+        --text: #b8e6e8;
+        --muted: #5f7880;
+        --bright: #d8fbff;
+        --blue: #4aa3ff;
+        --warn: #f2d270;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      html,
+      body {
+        margin: 0;
+        min-height: 100%;
+      }
+
+      body {
+        background:
+          radial-gradient(circle at 68% 45%, rgba(141, 185, 191, 0.08), transparent 34%),
+          linear-gradient(180deg, #0c1218 0%, #05090d 100%);
+        color: var(--text);
+        font-family:
+          ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+        padding: 20px;
+      }
+
+      .screen {
+        width: min(1680px, 100%);
+        height: calc(100vh - 40px);
+        min-height: 760px;
+        margin: 0 auto;
+        position: relative;
+        overflow: hidden;
+        border: 1px solid rgba(141, 185, 191, 0.28);
+        background:
+          radial-gradient(circle at 76% 34%, rgba(141, 185, 191, 0.06), transparent 22%),
+          linear-gradient(rgba(141, 185, 191, 0.055) 1px, transparent 1px),
+          linear-gradient(90deg, rgba(141, 185, 191, 0.055) 1px, transparent 1px),
+          var(--bg);
+        background-size: auto, 20px 20px, 20px 20px, auto;
+        box-shadow: 0 0 48px rgba(141, 185, 191, 0.1);
+      }
+
+      .hud {
+        height: 100%;
+        padding: 18px;
+        display: grid;
+        grid-template-columns: 270px minmax(520px, 1fr) 270px;
+        grid-template-rows: minmax(420px, 1fr) 270px;
+        gap: 14px;
+      }
+
+      .panel,
+      .terminal,
+      .files,
+      .keyboard {
+        position: relative;
+        border: 1px solid var(--line-dim);
+        background: var(--panel);
+        overflow: hidden;
+      }
+
+      .panel::before,
+      .terminal::before,
+      .files::before,
+      .keyboard::before {
+        content: attr(data-title);
+        position: absolute;
+        top: -1px;
+        left: 10px;
+        padding: 0 8px;
+        background: var(--bg);
+        color: var(--line);
+        font-size: 11px;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+      }
+
+      .left {
+        grid-column: 1;
+        grid-row: 1 / 3;
+        padding: 42px 12px 12px;
+      }
+
+      .right {
+        grid-column: 3;
+        grid-row: 1 / 2;
+        padding: 38px 10px 12px;
+        display: grid;
+        grid-template-rows: auto minmax(210px, 1fr) 216px;
+        gap: 12px;
+      }
+
+      .terminal {
+        grid-column: 2;
+        grid-row: 1;
+        padding: 52px 16px 16px;
+      }
+
+      .files {
+        grid-column: 1 / 2;
+        grid-row: 2;
+        padding: 36px 10px 8px;
+      }
+
+      .keyboard {
+        grid-column: 2 / 4;
+        grid-row: 2;
+        padding: 36px 18px 14px;
+      }
+
+      .tabs {
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        height: 34px;
+        display: grid;
+        grid-template-columns: 230px repeat(4, 1fr);
+        border-bottom: 1px solid var(--line-dim);
+      }
+
+      .tab {
+        position: relative;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: var(--line);
+        border-right: 1px solid var(--line-dim);
+        font-size: 13px;
+      }
+
+      .tab.active {
+        color: var(--bg);
+        background: var(--line);
+        font-weight: 700;
+      }
+
+      .terminal-body {
+        height: 100%;
+        border: 1px solid var(--line-dim);
+        padding: 14px;
+        color: var(--text);
+        background: rgba(3, 7, 10, 0.58);
+      }
+
+      .scan {
+        position: absolute;
+        left: 0;
+        right: 0;
+        top: 35px;
+        height: 1px;
+        background: linear-gradient(90deg, transparent, var(--line), transparent);
+        animation: scan 3.6s linear infinite;
+      }
+
+      .time {
+        font-size: 44px;
+        letter-spacing: 0.14em;
+        color: var(--bright);
+        margin-bottom: 16px;
+      }
+
+      .kv {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 8px 12px;
+        margin-bottom: 14px;
+        padding-bottom: 12px;
+        border-bottom: 1px solid var(--line-dim);
+      }
+
+      .label {
+        color: var(--muted);
+        font-size: 12px;
+        text-transform: uppercase;
+      }
+
+      .value {
+        color: var(--text);
+        font-size: 14px;
+      }
+
+      .section {
+        margin: 13px 0 6px;
+        color: var(--line);
+        text-transform: uppercase;
+        font-size: 13px;
+        border-bottom: 1px solid var(--line-dim);
+      }
+
+      .tiny-chart {
+        height: 46px;
+        margin-bottom: 8px;
+        border-left: 1px solid var(--line-dim);
+        border-bottom: 1px solid var(--line-dim);
+        background:
+          linear-gradient(90deg, transparent 0 92%, rgba(141, 185, 191, 0.18) 92%),
+          linear-gradient(0deg, transparent 0 72%, rgba(141, 185, 191, 0.11) 72%);
+        position: relative;
+        overflow: hidden;
+      }
+
+      .tiny-chart::after {
+        content: "/\\/\\__/\\_//\\___/\\/\\";
+        position: absolute;
+        left: 0;
+        bottom: 5px;
+        color: var(--line);
+        animation: drift 2.8s linear infinite;
+      }
+
+      .memory-grid {
+        display: grid;
+        grid-template-columns: repeat(24, 1fr);
+        gap: 2px;
+      }
+
+      .memory-grid span {
+        height: 7px;
+        background: rgba(141, 185, 191, 0.18);
+      }
+
+      .memory-grid span:nth-child(3n),
+      .memory-grid span:nth-child(5n) {
+        background: rgba(184, 230, 232, 0.78);
+      }
+
+      .process {
+        display: grid;
+        grid-template-columns: 5ch 1fr 6ch 5ch;
+        gap: 6px;
+        color: var(--muted);
+        font-size: 12px;
+        line-height: 1.5;
+      }
+
+      .process strong {
+        color: var(--text);
+        font-weight: 500;
+      }
+
+      pre {
+        margin: 0;
+        white-space: pre-wrap;
+        color: var(--text);
+        font: inherit;
+        line-height: 1.36;
+      }
+
+      .prompt {
+        color: var(--bright);
+        font-weight: 700;
+      }
+
+      .muted {
+        color: var(--muted);
+      }
+
+      .cursor {
+        display: inline-block;
+        width: 9px;
+        height: 17px;
+        background: var(--line);
+        transform: translateY(3px);
+        animation: blink 0.8s steps(2, start) infinite;
+      }
+
+      .net-block {
+        min-height: 0;
+        border-top: 1px solid var(--line-dim);
+        padding-top: 9px;
+      }
+
+      .net-heading {
+        display: flex;
+        justify-content: space-between;
+        align-items: baseline;
+        color: var(--line);
+        font-size: 16px;
+        text-transform: uppercase;
+        margin-bottom: 5px;
+        gap: 8px;
+      }
+
+      .net-heading small {
+        color: var(--muted);
+        font-size: 10px;
+        white-space: nowrap;
+      }
+
+      .status-matrix {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 7px 10px;
+        border-bottom: 1px solid var(--line-dim);
+        padding-bottom: 12px;
+      }
+
+      .status-item {
+        min-width: 0;
+        border-left: 1px solid rgba(141, 185, 191, 0.28);
+        padding-left: 7px;
+      }
+
+      .status-item.wide {
+        grid-column: 1 / -1;
+      }
+
+      .status-matrix .label {
+        display: block;
+        font-size: 10px;
+        line-height: 1.1;
+      }
+
+      .status-matrix .value {
+        display: block;
+        margin-top: 2px;
+        font-size: 12px;
+        line-height: 1.15;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+
+      .rate-pair {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 8px;
+        margin-top: 5px;
+      }
+
+      .rate {
+        display: grid;
+        grid-template-columns: 5ch 1fr;
+        gap: 5px;
+        align-items: center;
+        color: var(--muted);
+        font-size: 10px;
+      }
+
+      .rate-bar {
+        height: 7px;
+        border-left: 1px solid var(--line-dim);
+        border-right: 1px solid var(--line-dim);
+        background: linear-gradient(90deg, rgba(184, 230, 232, 0.78) 0 var(--fill), rgba(141, 185, 191, 0.14) var(--fill));
+      }
+
+      .world-meta {
+        display: flex;
+        justify-content: space-between;
+        color: var(--muted);
+        font-size: 12px;
+        text-transform: uppercase;
+        margin-bottom: 6px;
+      }
+
+      .interfaces {
+        min-height: 0;
+        border-top: 1px solid var(--line-dim);
+        border-bottom: 1px solid var(--line-dim);
+        padding-top: 9px;
+      }
+
+      .iface-list {
+        display: grid;
+        gap: 7px;
+        margin-top: 10px;
+      }
+
+      .iface {
+        display: grid;
+        grid-template-columns: 6ch 1fr 6ch;
+        gap: 8px;
+        align-items: center;
+        color: var(--muted);
+        font-size: 12px;
+        min-width: 0;
+      }
+
+      .iface strong {
+        color: var(--text);
+        font-size: 13px;
+        font-weight: 600;
+      }
+
+      .iface span {
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+
+      .iface .spark {
+        height: 8px;
+        border-left: 1px solid var(--line-dim);
+        border-right: 1px solid var(--line-dim);
+        background:
+          linear-gradient(90deg, rgba(184, 230, 232, 0.78) 0 64%, rgba(141, 185, 191, 0.16) 64%),
+          linear-gradient(0deg, transparent 45%, rgba(141, 185, 191, 0.35) 45% 55%, transparent 55%);
+      }
+
+      .traffic {
+        height: 156px;
+        border: 1px solid var(--line-dim);
+        position: relative;
+        overflow: hidden;
+        background:
+          linear-gradient(90deg, transparent 24%, rgba(141, 185, 191, 0.2) 25%, transparent 26%),
+          linear-gradient(90deg, transparent 49%, rgba(141, 185, 191, 0.28) 50%, transparent 51%),
+          linear-gradient(90deg, transparent 74%, rgba(141, 185, 191, 0.2) 75%, transparent 76%),
+          linear-gradient(0deg, transparent 49%, rgba(141, 185, 191, 0.42) 50%, transparent 51%),
+          linear-gradient(0deg, transparent 24%, rgba(141, 185, 191, 0.13) 25%, transparent 26%),
+          linear-gradient(0deg, transparent 74%, rgba(141, 185, 191, 0.13) 75%, transparent 76%);
+      }
+
+      .traffic-chart {
+        position: absolute;
+        inset: 0;
+        width: 100%;
+        height: 100%;
+      }
+
+      .traffic-fill {
+        fill: rgba(141, 185, 191, 0.12);
+        animation: graphPulse 2.8s ease-in-out infinite;
+      }
+
+      .traffic-curve {
+        fill: none;
+        stroke: var(--line);
+        stroke-width: 2.2;
+        stroke-linejoin: round;
+        stroke-linecap: round;
+        filter: drop-shadow(0 0 3px rgba(184, 230, 232, 0.36));
+      }
+
+      .traffic-curve.down {
+        stroke: rgba(184, 230, 232, 0.74);
+      }
+
+      .traffic-axis {
+        stroke: rgba(141, 185, 191, 0.32);
+        stroke-width: 1;
+        stroke-dasharray: 4 6;
+      }
+
+      .traffic-dot {
+        fill: var(--bright);
+        animation: pulse 1.4s ease-in-out infinite;
+      }
+
+      .traffic-label {
+        fill: var(--muted);
+        font-size: 10px;
+        text-transform: uppercase;
+      }
+
+      .traffic-scale {
+        position: absolute;
+        right: 7px;
+        color: var(--muted);
+        font-size: 10px;
+      }
+
+      .traffic-scale.up-high {
+        top: 8px;
+      }
+
+      .traffic-scale.up-low {
+        top: 55px;
+      }
+
+      .traffic-scale.down-high {
+        top: 75px;
+      }
+
+      .traffic-scale.down-low {
+        bottom: 8px;
+      }
+
+      .file-grid {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 8px 12px;
+      }
+
+      .file-path {
+        color: var(--muted);
+        font-size: 10px;
+        text-align: right;
+        margin-bottom: 7px;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+
+      .file {
+        min-width: 0;
+        color: var(--text);
+        text-align: center;
+        font-size: 10px;
+      }
+
+      .file-name {
+        display: block;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+
+      .file-icon {
+        width: 32px;
+        height: 22px;
+        margin: 0 auto 3px;
+        border: 2px solid var(--line);
+        border-top-width: 8px;
+        border-radius: 2px;
+        background: rgba(141, 185, 191, 0.16);
+      }
+
+      .file-icon.doc {
+        border-top-width: 2px;
+        clip-path: polygon(0 0, 76% 0, 100% 24%, 100% 100%, 0 100%);
+      }
+
+      .keyboard-grid {
+        height: 100%;
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) 132px;
+        gap: 18px;
+      }
+
+      .alpha-keys {
+        min-width: 0;
+        display: flex;
+        flex-direction: column;
+        gap: 7px;
+      }
+
+      .key-row {
+        display: grid;
+        gap: 9px;
+      }
+
+      .key-row.numbers {
+        grid-template-columns: 74px repeat(13, minmax(34px, 1fr));
+      }
+
+      .key-row.qwerty {
+        grid-template-columns: 84px repeat(13, minmax(34px, 1fr));
+      }
+
+      .key-row.home {
+        grid-template-columns: 100px repeat(11, minmax(34px, 1fr));
+      }
+
+      .key-row.lower {
+        grid-template-columns: 118px repeat(10, minmax(34px, 1fr)) 104px;
+      }
+
+      .key-row.bottom {
+        grid-template-columns: 76px 68px 76px 76px minmax(260px, 1fr) 84px 82px 76px;
+      }
+
+      .key {
+        min-height: 30px;
+        border: 1px solid rgba(141, 185, 191, 0.24);
+        display: grid;
+        place-items: center;
+        color: var(--text);
+        background: rgba(6, 13, 18, 0.22);
+        text-transform: uppercase;
+        font-weight: 700;
+        font-size: 14px;
+        letter-spacing: 0;
+        position: relative;
+      }
+
+      .key::before,
+      .enter-key::before {
+        content: "";
+        position: absolute;
+        left: 8px;
+        right: 8px;
+        top: -1px;
+        height: 1px;
+        background: var(--line);
+        opacity: 0.5;
+      }
+
+      .key.active,
+      .enter-key.active {
+        color: var(--bg);
+        background: var(--text);
+        border-color: var(--text);
+      }
+
+      .key.dim {
+        color: var(--muted);
+      }
+
+      .command-keys {
+        display: grid;
+        grid-template-rows: 30px 76px 1fr;
+        gap: 10px;
+      }
+
+      .enter-key {
+        border: 1px solid rgba(141, 185, 191, 0.24);
+        color: var(--text);
+        display: grid;
+        place-items: center;
+        padding: 0;
+        font-weight: 700;
+        background: rgba(6, 13, 18, 0.22);
+        position: relative;
+      }
+
+      .arrow-pad {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        grid-template-rows: repeat(2, 30px);
+        gap: 8px;
+        align-content: center;
+      }
+
+      .arrow-pad .key:first-child {
+        grid-column: 2;
+      }
+
+      .arrow-pad .key {
+        min-height: 30px;
+      }
+
+      @keyframes scan {
+        from {
+          transform: translateX(-100%);
+        }
+        to {
+          transform: translateX(100%);
+        }
+      }
+
+      @keyframes drift {
+        from {
+          transform: translateX(-30%);
+        }
+        to {
+          transform: translateX(20%);
+        }
+      }
+
+      @keyframes blink {
+        50% {
+          opacity: 0;
+        }
+      }
+
+      @keyframes rotate {
+        to {
+          transform: rotate(360deg);
+        }
+      }
+
+      @keyframes pulse {
+        50% {
+          opacity: 0.35;
+        }
+      }
+
+      @keyframes graphPulse {
+        50% {
+          opacity: 0.58;
+        }
+      }
+
+      @media (max-width: 1100px) {
+        .screen {
+          height: auto;
+          min-height: 0;
+        }
+
+        .hud {
+          grid-template-columns: 1fr;
+          grid-template-rows: auto;
+        }
+
+        .left,
+        .right,
+        .terminal,
+        .files,
+        .keyboard {
+          grid-column: auto;
+          grid-row: auto;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <main class="screen">
+      <div class="hud">
+        <aside class="panel left" data-title="panel">
+          <div class="time">20:27:46</div>
+          <div class="kv">
+            <div>
+              <div class="label">Date</div>
+              <div class="value">2026 MAY 26</div>
+            </div>
+            <div>
+              <div class="label">Uptime</div>
+              <div class="value">1:09:51</div>
+            </div>
+            <div>
+              <div class="label">Type</div>
+              <div class="value">macOS</div>
+            </div>
+            <div>
+              <div class="label">Power</div>
+              <div class="value">CHARGE</div>
+            </div>
+          </div>
+
+          <div class="section">CPU usage</div>
+          <div class="label">#1-2 Avg. 55%</div>
+          <div class="tiny-chart"></div>
+          <div class="label">#3-4 Avg. 56%</div>
+          <div class="tiny-chart"></div>
+
+          <div class="section">Memory</div>
+          <div class="label">using 9.4 out of 16.0 GiB</div>
+          <div class="memory-grid">
+            <span></span><span></span><span></span><span></span><span></span><span></span>
+            <span></span><span></span><span></span><span></span><span></span><span></span>
+            <span></span><span></span><span></span><span></span><span></span><span></span>
+            <span></span><span></span><span></span><span></span><span></span><span></span>
+          </div>
+
+          <div class="section">Top processes</div>
+          <div class="process"><span>5636</span><strong>paneview</strong><span>10.3%</span><span>2%</span></div>
+          <div class="process"><span>2404</span><strong>zsh</strong><span>5.4%</span><span>4%</span></div>
+          <div class="process"><span>1137</span><strong>sysinfo</strong><span>4.1%</span><span>1%</span></div>
+        </aside>
+
+        <section class="terminal" data-title="terminal">
+          <div class="tabs">
+            <div class="tab active">MAIN SHELL</div>
+            <div class="tab">PANE 2</div>
+            <div class="tab">EMPTY</div>
+            <div class="tab">EMPTY</div>
+            <div class="tab">EMPTY</div>
+          </div>
+          <div class="scan"></div>
+          <div class="terminal-body">
+            <pre><span class="muted">Welcome to PaneView v0.1.4 - PTY terminal workspace</span>
+<span class="prompt">~/PaneView</span> $ paneview --version
+paneview 0.1.4 (local-preview)
+
+<span class="prompt">~/PaneView</span> $ cargo test
+running 3 tests
+test layout::vertical_split_places_panes_left_and_right ... ok
+test layout::horizontal_split_places_panes_top_and_bottom ... ok
+test layout::removing_a_leaf_collapses_its_parent ... ok
+
+<span class="prompt">~/PaneView</span> $ neofetch
+        .:-=+*#%%#*+=-:.        user@paneview
+     :=#%%%%%%%%%%%%%%%%#=:     OS: macOS / Linux
+   -#%%%%%#*+====+*#%%%%%#-    Kernel: portable
+  *%%%%#=.          .=#%%%%*   Shell: PTY-backed
+  %%%%-      .--.      -%%%%   UI: ratatui + crossterm
+  *%%%%#=.          .=#%%%%*   Panes: 2 active
+   -#%%%%%#*+====+*#%%%%%#-    Theme: eDEX-inspired
+     :=#%%%%%%%%%%%%%%%%#=:
+        .:-=+*#%%#*+=-:.
+
+<span class="prompt">~/PaneView</span> $ <span class="cursor"></span></pre>
+          </div>
+        </section>
+
+        <aside class="panel right" data-title="network">
+          <section class="net-block">
+            <div class="net-heading">
+              <span>Network status</span>
+              <small>Active: en0</small>
+            </div>
+            <div class="status-matrix">
+              <div class="status-item">
+                <span class="label">State</span>
+                <span class="value">ONLINE</span>
+              </div>
+              <div class="status-item">
+                <span class="label">IPv4</span>
+                <span class="value">192.168.1.24</span>
+              </div>
+              <div class="status-item">
+                <span class="label">IPv6</span>
+                <span class="value">fe80::aede:48ff</span>
+              </div>
+              <div class="status-item">
+                <span class="label">Gateway</span>
+                <span class="value">192.168.1.1</span>
+              </div>
+              <div class="status-item">
+                <span class="label">DNS</span>
+                <span class="value">1.1.1.1, 8.8.8.8</span>
+              </div>
+              <div class="status-item">
+                <span class="label">Ping</span>
+                <span class="value">16ms</span>
+              </div>
+              <div class="status-item">
+                <span class="label">MTU</span>
+                <span class="value">1500</span>
+              </div>
+              <div class="status-item">
+                <span class="label">Packets</span>
+                <span class="value">RX 42K / TX 11K</span>
+              </div>
+              <div class="status-item wide">
+                <span class="label">Live throughput</span>
+                <div class="rate-pair">
+                  <span class="rate">UP<span class="rate-bar" style="--fill: 38%"></span></span>
+                  <span class="rate">DOWN<span class="rate-bar" style="--fill: 67%"></span></span>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <section class="interfaces">
+            <div class="net-heading">
+              <span>Interfaces</span>
+              <small>Local adapters</small>
+            </div>
+            <div class="world-meta">
+              <span>Name / address</span>
+              <span>state</span>
+            </div>
+            <div class="iface-list">
+              <div class="iface"><strong>en0</strong><span>192.168.1.24</span><span>up</span><div class="spark"></div><span>rx 1.32 GiB</span><span>tx 158 MiB</span></div>
+              <div class="iface"><strong>lo0</strong><span>127.0.0.1</span><span>up</span><div class="spark"></div><span>rx 84 MiB</span><span>tx 84 MiB</span></div>
+              <div class="iface"><strong>awdl0</strong><span>fe80::/64</span><span>idle</span><div class="spark"></div><span>rx 0 B/s</span><span>tx 0 B/s</span></div>
+              <div class="iface"><strong>utun</strong><span>N/A</span><span>idle</span><div class="spark"></div><span>rx N/A</span><span>tx N/A</span></div>
+            </div>
+          </section>
+
+          <section class="net-block">
+            <div class="net-heading">
+              <span>Network traffic</span>
+              <small>Up / down, MiB/s</small>
+            </div>
+            <div class="world-meta">
+              <span>Total</span>
+              <span>158 MiB out, 1.32 GiB in</span>
+            </div>
+            <div class="traffic">
+              <svg class="traffic-chart" viewBox="0 0 270 140" preserveAspectRatio="none" aria-label="Network traffic chart">
+                <line class="traffic-axis" x1="0" y1="70" x2="270" y2="70" />
+                <text class="traffic-label" x="8" y="15">UP</text>
+                <text class="traffic-label" x="8" y="84">DOWN</text>
+                <path class="traffic-fill" d="M14 60 L36 52 L58 31 L80 42 L102 18 L124 54 L146 43 L168 14 L190 29 L212 23 L234 47 L252 38 L252 66 L14 66 Z" />
+                <path class="traffic-fill" d="M14 128 L36 112 L58 119 L80 96 L102 103 L124 90 L146 126 L168 100 L190 84 L212 107 L234 92 L252 116 L252 134 L14 134 Z" />
+                <polyline class="traffic-curve up" points="14,60 36,52 58,31 80,42 102,18 124,54 146,43 168,14 190,29 212,23 234,47 252,38" />
+                <polyline class="traffic-curve down" points="14,128 36,112 58,119 80,96 102,103 124,90 146,126 168,100 190,84 212,107 234,92 252,116" />
+                <circle class="traffic-dot" cx="168" cy="14" r="3.4" />
+                <circle class="traffic-dot" cx="190" cy="84" r="3.4" />
+              </svg>
+              <span class="traffic-scale up-high">0.21</span>
+              <span class="traffic-scale up-low">0.00</span>
+              <span class="traffic-scale down-high">0.18</span>
+              <span class="traffic-scale down-low">0.00</span>
+            </div>
+          </section>
+        </aside>
+
+        <section class="files" data-title="filesystem">
+          <div class="file-path">/Users/lusia/Desktop/Project/PaneView</div>
+          <div class="file-grid">
+            <div class="file"><div class="file-icon"></div><span class="file-name">.github</span></div>
+            <div class="file"><div class="file-icon doc"></div><span class="file-name">.gitignore</span></div>
+            <div class="file"><div class="file-icon doc"></div><span class="file-name">Cargo.lock</span></div>
+            <div class="file"><div class="file-icon doc"></div><span class="file-name">Cargo.toml</span></div>
+            <div class="file"><div class="file-icon doc"></div><span class="file-name">README.md</span></div>
+            <div class="file"><div class="file-icon doc"></div><span class="file-name">build.rs</span></div>
+            <div class="file"><div class="file-icon"></div><span class="file-name">docs</span></div>
+            <div class="file"><div class="file-icon doc"></div><span class="file-name">install.sh</span></div>
+            <div class="file"><div class="file-icon"></div><span class="file-name">scripts</span></div>
+            <div class="file"><div class="file-icon"></div><span class="file-name">src</span></div>
+          </div>
+        </section>
+
+        <section class="keyboard" data-title="keyboard">
+          <div class="keyboard-grid">
+            <div class="alpha-keys">
+              <div class="key-row numbers">
+                <div class="key" data-code="Escape">ESC</div><div class="key" data-code="Backquote">~</div><div class="key" data-code="Digit1">1</div><div class="key" data-code="Digit2">2</div>
+                <div class="key" data-code="Digit3">3</div><div class="key" data-code="Digit4">4</div><div class="key" data-code="Digit5">5</div><div class="key" data-code="Digit6">6</div>
+                <div class="key" data-code="Digit7">7</div><div class="key" data-code="Digit8">8</div><div class="key" data-code="Digit9">9</div><div class="key" data-code="Digit0">0</div>
+                <div class="key" data-code="Minus">-</div><div class="key" data-code="Equal">=</div>
+              </div>
+              <div class="key-row qwerty">
+                <div class="key" data-code="Tab">TAB</div><div class="key" data-code="KeyQ">Q</div><div class="key" data-code="KeyW">W</div><div class="key" data-code="KeyE">E</div>
+                <div class="key" data-code="KeyR">R</div><div class="key" data-code="KeyT">T</div><div class="key" data-code="KeyY">Y</div><div class="key" data-code="KeyU">U</div>
+                <div class="key" data-code="KeyI">I</div><div class="key" data-code="KeyO">O</div><div class="key" data-code="KeyP">P</div><div class="key" data-code="BracketLeft">{</div>
+                <div class="key" data-code="BracketRight">}</div><div class="key" data-code="Backslash">\\</div>
+              </div>
+              <div class="key-row home">
+                <div class="key" data-code="CapsLock">CAPS</div><div class="key" data-code="KeyA">A</div><div class="key" data-code="KeyS">S</div><div class="key" data-code="KeyD">D</div>
+                <div class="key" data-code="KeyF">F</div><div class="key" data-code="KeyG">G</div><div class="key" data-code="KeyH">H</div><div class="key" data-code="KeyJ">J</div>
+                <div class="key" data-code="KeyK">K</div><div class="key" data-code="KeyL">L</div><div class="key" data-code="Semicolon">;</div><div class="key" data-code="Quote">'</div>
+              </div>
+              <div class="key-row lower">
+                <div class="key" data-code="ShiftLeft">SHIFT</div><div class="key" data-code="KeyZ">Z</div><div class="key" data-code="KeyX">X</div><div class="key" data-code="KeyC">C</div>
+                <div class="key" data-code="KeyV">V</div><div class="key" data-code="KeyB">B</div><div class="key" data-code="KeyN">N</div><div class="key" data-code="KeyM">M</div>
+                <div class="key" data-code="Comma">,</div><div class="key" data-code="Period">.</div><div class="key" data-code="Slash">/</div><div class="key" data-code="ShiftRight">SHIFT</div>
+              </div>
+              <div class="key-row bottom">
+                <div class="key" data-code="ControlLeft">CTRL</div><div class="key" data-code="Fn">FN</div><div class="key" data-code="MetaLeft">CMD</div><div class="key" data-code="AltLeft">ALT</div>
+                <div class="key" data-code="Space">SPACE</div><div class="key" data-code="AltRight">ALTGR</div><div class="key" data-code="ContextMenu">MENU</div><div class="key" data-code="ControlRight">CTRL</div>
+              </div>
+            </div>
+            <div class="command-keys">
+              <div class="key" data-code="Backspace">BACK</div>
+              <div class="enter-key" data-code="Enter">ENTER</div>
+              <div class="arrow-pad">
+                <div class="key dim" data-code="ArrowUp">▲</div>
+                <div class="key dim" data-code="ArrowLeft">◀</div>
+                <div class="key dim" data-code="ArrowDown">▼</div>
+                <div class="key dim" data-code="ArrowRight">▶</div>
+              </div>
+            </div>
+          </div>
+        </section>
+      </div>
+    </main>
+    <script>
+      (() => {
+        const pressed = new Set();
+        const keysByCode = new Map();
+
+        document.querySelectorAll("[data-code]").forEach((key) => {
+          keysByCode.set(key.dataset.code, key);
+        });
+
+        const setActive = (code, active) => {
+          const key = keysByCode.get(code);
+          if (!key) return false;
+          key.classList.toggle("active", active);
+          return true;
+        };
+
+        const clearActiveKeys = () => {
+          pressed.forEach((code) => setActive(code, false));
+          pressed.clear();
+          keysByCode.forEach((key) => key.classList.remove("active"));
+        };
+
+        window.addEventListener("keydown", (event) => {
+          if (!setActive(event.code, true)) return;
+          pressed.add(event.code);
+          event.preventDefault();
+        });
+
+        window.addEventListener("keyup", (event) => {
+          if (!setActive(event.code, false)) return;
+          pressed.delete(event.code);
+          event.preventDefault();
+        });
+
+        window.addEventListener("blur", clearActiveKeys);
+
+        const demoKeys = new URLSearchParams(window.location.search).get("keys");
+        if (demoKeys) {
+          requestAnimationFrame(() => {
+            demoKeys.split(",").forEach((code) => {
+              window.dispatchEvent(
+                new KeyboardEvent("keydown", {
+                  code: code.trim(),
+                  bubbles: true,
+                  cancelable: true,
+                }),
+              );
+            });
+          });
+        }
+      })();
+    </script>
+  </body>
+</html>

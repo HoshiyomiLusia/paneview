@@ -28,6 +28,93 @@ pub fn event_to_action(key: KeyEvent) -> Option<InputAction> {
     key_to_bytes(key).map(InputAction::Send)
 }
 
+pub fn key_labels(key: KeyEvent) -> Vec<&'static str> {
+    let mut labels = Vec::new();
+
+    if key.modifiers.contains(KeyModifiers::CONTROL) {
+        labels.push("CTRL");
+    }
+    if key.modifiers.contains(KeyModifiers::ALT) {
+        labels.push("ALT");
+    }
+    if key.modifiers.contains(KeyModifiers::SHIFT) {
+        labels.push("SHIFT");
+    }
+
+    if let Some(label) = key_code_label(key.code) {
+        if !labels.contains(&label) {
+            labels.push(label);
+        }
+    }
+
+    labels
+}
+
+fn key_code_label(code: KeyCode) -> Option<&'static str> {
+    match code {
+        KeyCode::Esc => Some("ESC"),
+        KeyCode::Backspace => Some("BACK"),
+        KeyCode::Enter => Some("ENTER"),
+        KeyCode::Tab | KeyCode::BackTab => Some("TAB"),
+        KeyCode::Left => Some("LEFT"),
+        KeyCode::Right => Some("RIGHT"),
+        KeyCode::Up => Some("UP"),
+        KeyCode::Down => Some("DOWN"),
+        KeyCode::Char(' ') => Some("SPACE"),
+        KeyCode::Char('`') | KeyCode::Char('~') => Some("~"),
+        KeyCode::Char('1') | KeyCode::Char('!') => Some("1"),
+        KeyCode::Char('2') | KeyCode::Char('@') => Some("2"),
+        KeyCode::Char('3') | KeyCode::Char('#') => Some("3"),
+        KeyCode::Char('4') | KeyCode::Char('$') => Some("4"),
+        KeyCode::Char('5') | KeyCode::Char('%') => Some("5"),
+        KeyCode::Char('6') | KeyCode::Char('^') => Some("6"),
+        KeyCode::Char('7') | KeyCode::Char('&') => Some("7"),
+        KeyCode::Char('8') | KeyCode::Char('*') => Some("8"),
+        KeyCode::Char('9') | KeyCode::Char('(') => Some("9"),
+        KeyCode::Char('0') | KeyCode::Char(')') => Some("0"),
+        KeyCode::Char('-') | KeyCode::Char('_') => Some("-"),
+        KeyCode::Char('=') | KeyCode::Char('+') => Some("="),
+        KeyCode::Char('[') | KeyCode::Char('{') => Some("{"),
+        KeyCode::Char(']') | KeyCode::Char('}') => Some("}"),
+        KeyCode::Char('\\') | KeyCode::Char('|') => Some("\\"),
+        KeyCode::Char(';') | KeyCode::Char(':') => Some(";"),
+        KeyCode::Char('\'') | KeyCode::Char('"') => Some("'"),
+        KeyCode::Char(',') | KeyCode::Char('<') => Some(","),
+        KeyCode::Char('.') | KeyCode::Char('>') => Some("."),
+        KeyCode::Char('/') | KeyCode::Char('?') => Some("/"),
+        KeyCode::Char(c) => match c.to_ascii_uppercase() {
+            'A' => Some("A"),
+            'B' => Some("B"),
+            'C' => Some("C"),
+            'D' => Some("D"),
+            'E' => Some("E"),
+            'F' => Some("F"),
+            'G' => Some("G"),
+            'H' => Some("H"),
+            'I' => Some("I"),
+            'J' => Some("J"),
+            'K' => Some("K"),
+            'L' => Some("L"),
+            'M' => Some("M"),
+            'N' => Some("N"),
+            'O' => Some("O"),
+            'P' => Some("P"),
+            'Q' => Some("Q"),
+            'R' => Some("R"),
+            'S' => Some("S"),
+            'T' => Some("T"),
+            'U' => Some("U"),
+            'V' => Some("V"),
+            'W' => Some("W"),
+            'X' => Some("X"),
+            'Y' => Some("Y"),
+            'Z' => Some("Z"),
+            _ => None,
+        },
+        _ => None,
+    }
+}
+
 fn global_control_action(code: KeyCode) -> Option<InputAction> {
     match code {
         KeyCode::Char('q') | KeyCode::Char('Q') => Some(InputAction::Quit),

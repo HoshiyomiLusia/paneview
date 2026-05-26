@@ -1,9 +1,10 @@
 use std::collections::HashMap;
 
 use anyhow::Context;
+use crossterm::event::{KeyEvent, KeyEventKind};
 use ratatui::layout::Rect;
 
-use crate::input::InputAction;
+use crate::input::{InputAction, key_labels};
 use crate::layout::{PaneId, PaneLayout, SplitDirection};
 use crate::pane::Pane;
 use crate::system::{SystemMonitor, SystemSnapshot};
@@ -27,6 +28,7 @@ pub struct App {
     last_rects: HashMap<PaneId, Rect>,
     status: String,
     animation_tick: u64,
+    active_keys: HashMap<&'static str, u64>,
 }
 
 impl App {
@@ -47,15 +49,39 @@ impl App {
             last_rects: HashMap::new(),
             status: "normal".to_string(),
             animation_tick: 0,
+            active_keys: HashMap::new(),
         })
     }
 
     pub fn tick(&mut self) {
         self.animation_tick = self.animation_tick.wrapping_add(1);
+        let now = self.animation_tick;
+        self.active_keys.retain(|_, expires_at| *expires_at > now);
         for pane in self.panes.values_mut() {
             pane.drain_output();
         }
         self.system.refresh_if_due();
+    }
+
+    pub fn record_key_event(&mut self, key: KeyEvent) {
+        let labels = key_labels(key);
+        if labels.is_empty() {
+            return;
+        }
+
+        match key.kind {
+            KeyEventKind::Press | KeyEventKind::Repeat => {
+                let expires_at = self.animation_tick.saturating_add(8);
+                for label in labels {
+                    self.active_keys.insert(label, expires_at);
+                }
+            }
+            KeyEventKind::Release => {
+                for label in labels {
+                    self.active_keys.remove(label);
+                }
+            }
+        }
     }
 
     pub fn handle_action(&mut self, action: InputAction) -> anyhow::Result<()> {
@@ -132,6 +158,10 @@ impl App {
 
     pub fn pane_count(&self) -> usize {
         self.panes.len()
+    }
+
+    pub fn is_key_active(&self, label: &str) -> bool {
+        self.active_keys.contains_key(label)
     }
 
     fn split_focused(&mut self, direction: SplitDirection) -> anyhow::Result<()> {

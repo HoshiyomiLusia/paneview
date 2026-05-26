@@ -1,4 +1,7 @@
-use std::io::{Stdout, stdout};
+use std::{
+    fs,
+    io::{Stdout, stdout},
+};
 
 use crossterm::{
     execute,
@@ -7,7 +10,7 @@ use crossterm::{
 use ratatui::{
     Frame, Terminal,
     backend::CrosstermBackend,
-    layout::Rect,
+    layout::{Constraint, Direction, Layout, Rect},
     style::{Color, Modifier, Style},
     text::{Line, Span},
     widgets::{Block, Borders, Gauge, Paragraph, Sparkline, Wrap},
@@ -59,6 +62,9 @@ pub fn draw(frame: &mut Frame<'_>, app: &App) {
     }
 
     draw_panes(frame, regions.panes, app);
+    if let Some(accessory_area) = regions.accessory {
+        draw_accessory(frame, accessory_area, app);
+    }
     draw_status(frame, regions.status, app);
 }
 
@@ -69,6 +75,7 @@ pub fn pane_region(area: Rect, show_system: bool) -> Rect {
 struct Regions {
     panes: Rect,
     system: Option<Rect>,
+    accessory: Option<Rect>,
     status: Rect,
 }
 
@@ -92,24 +99,34 @@ impl Regions {
             return Self {
                 panes: content,
                 system: None,
+                accessory: None,
                 status,
             };
         }
 
         let system_height = dashboard_height(content.height);
+        let remaining_height = content.height.saturating_sub(system_height);
+        let accessory_height = accessory_height(content.width, remaining_height);
+        let panes_height = remaining_height.saturating_sub(accessory_height);
+        let panes_y = content.y.saturating_add(system_height);
         Self {
-            panes: Rect::new(
-                content.x,
-                content.y.saturating_add(system_height),
-                content.width,
-                content.height.saturating_sub(system_height),
-            ),
+            panes: Rect::new(content.x, panes_y, content.width, panes_height),
             system: Some(Rect::new(
                 content.x,
                 content.y,
                 content.width,
                 system_height,
             )),
+            accessory: if accessory_height > 0 {
+                Some(Rect::new(
+                    content.x,
+                    panes_y.saturating_add(panes_height),
+                    content.width,
+                    accessory_height,
+                ))
+            } else {
+                None
+            },
             status,
         }
     }
@@ -131,6 +148,14 @@ fn status_bar_height(total_height: u16) -> u16 {
         12..=17 => 2,
         _ => 3,
     }
+}
+
+fn accessory_height(width: u16, available_height: u16) -> u16 {
+    if width < 100 || available_height < 18 {
+        return 0;
+    }
+
+    8.min(available_height.saturating_sub(7))
 }
 
 fn draw_panes(frame: &mut Frame<'_>, area: Rect, app: &App) {
@@ -389,9 +414,20 @@ fn draw_network_card(frame: &mut Frame<'_>, area: Rect, snapshot: &SystemSnapsho
         inner,
         &mut y,
         format!(
-            "down {}  up {}",
+            "{} | down {} up {}",
+            snapshot.active_interface.as_deref().unwrap_or("N/A"),
             rate_label(snapshot.rx_per_sec),
             rate_label(snapshot.tx_per_sec)
+        ),
+    );
+    draw_line(
+        frame,
+        inner,
+        &mut y,
+        format!(
+            "IPv4 {} | IPv6 {}",
+            snapshot.primary_ipv4.as_deref().unwrap_or("N/A"),
+            snapshot.primary_ipv6.as_deref().unwrap_or("N/A")
         ),
     );
     draw_sparkline_row(
@@ -413,6 +449,26 @@ fn draw_network_card(frame: &mut Frame<'_>, area: Rect, snapshot: &SystemSnapsho
         TRACE,
     );
     draw_gap(&mut y, inner.bottom());
+    draw_line(
+        frame,
+        inner,
+        &mut y,
+        format!(
+            "total in {} out {}",
+            format_bytes(snapshot.total_received),
+            format_bytes(snapshot.total_transmitted)
+        ),
+    );
+    draw_line(
+        frame,
+        inner,
+        &mut y,
+        format!(
+            "packets rx {} tx {}",
+            compact_count(snapshot.packets_received),
+            compact_count(snapshot.packets_transmitted)
+        ),
+    );
     draw_line(
         frame,
         inner,
@@ -471,8 +527,10 @@ fn draw_interfaces_card(frame: &mut Frame<'_>, area: Rect, snapshot: &SystemSnap
                 Span::raw(format!("{} ", truncate(&interface.name, 8))),
                 state,
                 Span::raw(format!(
-                    " {}",
-                    truncate(&ips, inner.width.saturating_sub(13) as usize)
+                    " {} rx {} tx {}",
+                    truncate(&ips, inner.width.saturating_sub(31) as usize),
+                    format_bytes(interface.received),
+                    format_bytes(interface.transmitted)
                 )),
             ]),
         );
@@ -523,6 +581,146 @@ fn split_columns(area: Rect, first_percent: u16, second_percent: u16) -> [Rect; 
             area.height,
         ),
     ]
+}
+
+fn draw_accessory(frame: &mut Frame<'_>, area: Rect, app: &App) {
+    if area.width == 0 || area.height == 0 {
+        return;
+    }
+
+    let chunks = if area.width >= 120 {
+        Layout::default()
+            .direction(Direction::Horizontal)
+            .constraints([Constraint::Length(34), Constraint::Min(20)])
+            .split(area)
+    } else {
+        Layout::default()
+            .direction(Direction::Horizontal)
+            .constraints([Constraint::Min(20)])
+            .split(area)
+    };
+
+    if chunks.len() == 2 {
+        draw_filesystem(frame, chunks[0]);
+        draw_keyboard(frame, chunks[1], app);
+    } else if let Some(keyboard_area) = chunks.first() {
+        draw_keyboard(frame, *keyboard_area, app);
+    }
+}
+
+fn draw_filesystem(frame: &mut Frame<'_>, area: Rect) {
+    let inner = draw_panel(frame, area, "Filesystem");
+    if inner.height == 0 {
+        return;
+    }
+
+    let (path, entries) = current_dir_entries();
+    let mut y = inner.y;
+    draw_line(frame, inner, &mut y, truncate(&path, inner.width as usize));
+
+    let rows = inner.bottom().saturating_sub(y) as usize;
+    if rows == 0 {
+        return;
+    }
+
+    let columns = if inner.width >= 30 { 2 } else { 1 };
+    let column_width = (inner.width as usize / columns).max(1);
+    for row in 0..rows {
+        let mut line = String::new();
+        for column in 0..columns {
+            let index = row + column * rows;
+            let Some(entry) = entries.get(index) else {
+                continue;
+            };
+            let cell = truncate(entry, column_width.saturating_sub(1));
+            line.push_str(&format!("{cell:<column_width$}"));
+        }
+        draw_line(frame, inner, &mut y, line);
+    }
+}
+
+fn draw_keyboard(frame: &mut Frame<'_>, area: Rect, app: &App) {
+    let inner = draw_panel(frame, area, "Keyboard");
+    let rows: [&[&str]; 5] = [
+        &[
+            "ESC", "~", "1", "2", "3", "4", "5", "6", "7", "8", "9", "0", "-", "=", "BACK",
+        ],
+        &[
+            "TAB", "Q", "W", "E", "R", "T", "Y", "U", "I", "O", "P", "{", "}", "\\",
+        ],
+        &[
+            "CAPS", "A", "S", "D", "F", "G", "H", "J", "K", "L", ";", "'",
+        ],
+        &[
+            "SHIFT", "Z", "X", "C", "V", "B", "N", "M", ",", ".", "/", "SHIFT",
+        ],
+        &[
+            "CTRL", "FN", "CMD", "ALT", "SPACE", "ALTGR", "MENU", "CTRL", "UP", "LEFT", "DOWN",
+            "RIGHT",
+        ],
+    ];
+
+    let max_rows = inner.height.min(rows.len() as u16);
+    for (offset, row) in rows.iter().take(max_rows as usize).enumerate() {
+        draw_key_row(
+            frame,
+            inner,
+            inner.y.saturating_add(offset as u16),
+            row,
+            app,
+        );
+    }
+}
+
+fn draw_key_row(frame: &mut Frame<'_>, area: Rect, y: u16, labels: &[&str], app: &App) {
+    if y >= area.bottom() {
+        return;
+    }
+
+    let mut spans = Vec::with_capacity(labels.len() * 2);
+    for (index, label) in labels.iter().enumerate() {
+        if index > 0 {
+            spans.push(Span::raw(" "));
+        }
+        let key_text = format!(" {label} ");
+        let style = if app.is_key_active(label) {
+            Style::default()
+                .fg(BG)
+                .bg(TEXT)
+                .add_modifier(Modifier::BOLD)
+        } else {
+            Style::default().fg(TEXT).bg(BG)
+        };
+        spans.push(Span::styled(key_text, style));
+    }
+
+    frame.render_widget(
+        Paragraph::new(Line::from(spans)).style(Style::default().bg(BG)),
+        Rect::new(area.x, y, area.width, 1),
+    );
+}
+
+fn current_dir_entries() -> (String, Vec<String>) {
+    let path = std::env::current_dir().unwrap_or_else(|_| ".".into());
+    let path_label = path.display().to_string();
+    let mut entries = fs::read_dir(&path)
+        .map(|read_dir| {
+            read_dir
+                .filter_map(Result::ok)
+                .filter_map(|entry| {
+                    let name = entry.file_name().to_string_lossy().to_string();
+                    let prefix = match entry.file_type() {
+                        Ok(file_type) if file_type.is_dir() => "[d]",
+                        Ok(_) => "[f]",
+                        Err(_) => "[?]",
+                    };
+                    Some(format!("{prefix} {name}"))
+                })
+                .collect::<Vec<_>>()
+        })
+        .unwrap_or_else(|_| vec!["N/A".to_string()]);
+    entries.sort_by_key(|entry| entry.to_ascii_lowercase());
+    (path_label, entries)
 }
 
 fn draw_status(frame: &mut Frame<'_>, area: Rect, app: &App) {
@@ -787,6 +985,18 @@ fn rate_label(value: Option<f64>) -> String {
     value
         .map(|value| format!("{}/s", format_bytes(value as u64)))
         .unwrap_or_else(|| "N/A".to_string())
+}
+
+fn compact_count(value: u64) -> String {
+    if value >= 1_000_000_000 {
+        format!("{:.1}B", value as f64 / 1_000_000_000.0)
+    } else if value >= 1_000_000 {
+        format!("{:.1}M", value as f64 / 1_000_000.0)
+    } else if value >= 1_000 {
+        format!("{:.1}K", value as f64 / 1_000.0)
+    } else {
+        value.to_string()
+    }
 }
 
 fn ascii_bar(percent: f32, width: usize) -> String {

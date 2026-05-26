@@ -18,6 +18,13 @@ pub struct SystemSnapshot {
     pub interfaces: Vec<InterfaceSnapshot>,
     pub rx_per_sec: Option<f64>,
     pub tx_per_sec: Option<f64>,
+    pub total_received: u64,
+    pub total_transmitted: u64,
+    pub packets_received: u64,
+    pub packets_transmitted: u64,
+    pub active_interface: Option<String>,
+    pub primary_ipv4: Option<String>,
+    pub primary_ipv6: Option<String>,
     pub cpu_history: Vec<u64>,
     pub memory_history: Vec<u64>,
     pub rx_history: Vec<u64>,
@@ -40,6 +47,13 @@ impl Default for SystemSnapshot {
             interfaces: Vec::new(),
             rx_per_sec: None,
             tx_per_sec: None,
+            total_received: 0,
+            total_transmitted: 0,
+            packets_received: 0,
+            packets_transmitted: 0,
+            active_interface: None,
+            primary_ipv4: None,
+            primary_ipv6: None,
             cpu_history: Vec::new(),
             memory_history: Vec::new(),
             rx_history: Vec::new(),
@@ -71,6 +85,10 @@ pub struct InterfaceSnapshot {
     pub name: String,
     pub ips: Vec<String>,
     pub is_up: Option<bool>,
+    pub received: u64,
+    pub transmitted: u64,
+    pub packets_received: u64,
+    pub packets_transmitted: u64,
 }
 
 pub struct SystemMonitor {
@@ -187,6 +205,27 @@ impl SystemMonitor {
             .collect();
 
         let (rx_per_sec, tx_per_sec) = network_rates(&self.networks, elapsed);
+        let interfaces = collect_interfaces(&self.networks);
+        let active_interface = interfaces.iter().find(|interface| {
+            interface.is_up == Some(true) && interface.ips.iter().any(|ip| !ip.starts_with("127."))
+        });
+        let primary_ipv4 = active_interface
+            .and_then(|interface| {
+                interface
+                    .ips
+                    .iter()
+                    .find(|ip| ip.contains('.') && !ip.starts_with("127."))
+            })
+            .cloned();
+        let primary_ipv6 = active_interface
+            .and_then(|interface| {
+                interface
+                    .ips
+                    .iter()
+                    .find(|ip| ip.contains(':') && !ip.starts_with("::1"))
+            })
+            .cloned();
+        let active_interface_name = active_interface.map(|interface| interface.name.clone());
 
         SystemSnapshot {
             cpu_usage: Some(self.system.global_cpu_usage()),
@@ -195,9 +234,32 @@ impl SystemMonitor {
             memory_used,
             memory_percent,
             disks,
-            interfaces: collect_interfaces(&self.networks),
+            interfaces,
             rx_per_sec,
             tx_per_sec,
+            total_received: self
+                .networks
+                .values()
+                .map(|network| network.total_received())
+                .sum(),
+            total_transmitted: self
+                .networks
+                .values()
+                .map(|network| network.total_transmitted())
+                .sum(),
+            packets_received: self
+                .networks
+                .values()
+                .map(|network| network.total_packets_received())
+                .sum(),
+            packets_transmitted: self
+                .networks
+                .values()
+                .map(|network| network.total_packets_transmitted())
+                .sum(),
+            active_interface: active_interface_name,
+            primary_ipv4,
+            primary_ipv6,
             cpu_history: Vec::new(),
             memory_history: Vec::new(),
             rx_history: Vec::new(),
@@ -253,6 +315,10 @@ fn collect_interfaces(networks: &Networks) -> Vec<InterfaceSnapshot> {
                         name: interface.name.clone(),
                         ips: Vec::new(),
                         is_up: None,
+                        received: 0,
+                        transmitted: 0,
+                        packets_received: 0,
+                        packets_transmitted: 0,
                     });
 
             let ip = interface.ip().to_string();
@@ -270,7 +336,29 @@ fn collect_interfaces(networks: &Networks) -> Vec<InterfaceSnapshot> {
                 name: name.clone(),
                 ips: Vec::new(),
                 is_up: None,
+                received: 0,
+                transmitted: 0,
+                packets_received: 0,
+                packets_transmitted: 0,
             });
+    }
+
+    for (name, network) in networks {
+        let entry = interfaces
+            .entry(name.clone())
+            .or_insert_with(|| InterfaceSnapshot {
+                name: name.clone(),
+                ips: Vec::new(),
+                is_up: None,
+                received: 0,
+                transmitted: 0,
+                packets_received: 0,
+                packets_transmitted: 0,
+            });
+        entry.received = network.total_received();
+        entry.transmitted = network.total_transmitted();
+        entry.packets_received = network.total_packets_received();
+        entry.packets_transmitted = network.total_packets_transmitted();
     }
 
     interfaces.into_values().collect()
