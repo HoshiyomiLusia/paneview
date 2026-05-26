@@ -52,10 +52,21 @@ pub fn draw(frame: &mut Frame<'_>, app: &App) {
     let area = frame.area();
     let regions = Regions::from(area, app.show_system_panel());
 
-    if let Some(system_area) = regions.system {
-        draw_system(
+    if let Some(system_region) = regions.system {
+        match system_region {
+            SystemRegion::Dashboard(area) => {
+                draw_system(frame, area, app.system_snapshot(), app.animation_tick());
+            }
+            SystemRegion::SidePanel(area) => {
+                draw_system_sidebar(frame, area, app.system_snapshot(), app.animation_tick());
+            }
+        }
+    }
+
+    if let Some(network_area) = regions.network {
+        draw_network_sidebar(
             frame,
-            system_area,
+            network_area,
             app.system_snapshot(),
             app.animation_tick(),
         );
@@ -74,9 +85,16 @@ pub fn pane_region(area: Rect, show_system: bool) -> Rect {
 
 struct Regions {
     panes: Rect,
-    system: Option<Rect>,
+    system: Option<SystemRegion>,
+    network: Option<Rect>,
     accessory: Option<Rect>,
     status: Rect,
+}
+
+#[derive(Debug, Clone, Copy)]
+enum SystemRegion {
+    Dashboard(Rect),
+    SidePanel(Rect),
 }
 
 impl Regions {
@@ -99,9 +117,14 @@ impl Regions {
             return Self {
                 panes: content,
                 system: None,
+                network: None,
                 accessory: None,
                 status,
             };
+        }
+
+        if let Some(edex) = Self::edex(content, status) {
+            return edex;
         }
 
         let system_height = dashboard_height(content.height);
@@ -111,12 +134,13 @@ impl Regions {
         let panes_y = content.y.saturating_add(system_height);
         Self {
             panes: Rect::new(content.x, panes_y, content.width, panes_height),
-            system: Some(Rect::new(
+            system: Some(SystemRegion::Dashboard(Rect::new(
                 content.x,
                 content.y,
                 content.width,
                 system_height,
-            )),
+            ))),
+            network: None,
             accessory: if accessory_height > 0 {
                 Some(Rect::new(
                     content.x,
@@ -129,6 +153,62 @@ impl Regions {
             },
             status,
         }
+    }
+
+    fn edex(content: Rect, status: Rect) -> Option<Self> {
+        if content.width < 96 || content.height < 22 {
+            return None;
+        }
+
+        let accessory_height = edex_accessory_height(content.width, content.height);
+        let top_height = content.height.saturating_sub(accessory_height);
+        if top_height < 14 {
+            return None;
+        }
+
+        let side_width = side_panel_width(content.width);
+        let network_width = side_width;
+        let panes_width = content
+            .width
+            .saturating_sub(side_width)
+            .saturating_sub(network_width);
+        if panes_width < 34 {
+            return None;
+        }
+
+        let top_y = content.y;
+        let accessory_y = content.y.saturating_add(top_height);
+        let system = Rect::new(content.x, top_y, side_width, top_height);
+        let panes = Rect::new(
+            content.x.saturating_add(side_width),
+            top_y,
+            panes_width,
+            top_height,
+        );
+        let network = Rect::new(
+            panes.x.saturating_add(panes_width),
+            top_y,
+            network_width,
+            top_height,
+        );
+        let accessory = if accessory_height > 0 {
+            Some(Rect::new(
+                content.x,
+                accessory_y,
+                content.width,
+                accessory_height,
+            ))
+        } else {
+            None
+        };
+
+        Some(Self {
+            panes,
+            system: Some(SystemRegion::SidePanel(system)),
+            network: Some(network),
+            accessory,
+            status,
+        })
     }
 }
 
@@ -151,11 +231,28 @@ fn status_bar_height(total_height: u16) -> u16 {
 }
 
 fn accessory_height(width: u16, available_height: u16) -> u16 {
-    if width < 100 || available_height < 18 {
+    if width < 80 || available_height < 11 {
         return 0;
     }
 
-    8.min(available_height.saturating_sub(7))
+    7.min(available_height.saturating_sub(5))
+}
+
+fn edex_accessory_height(width: u16, content_height: u16) -> u16 {
+    if width < 96 || content_height < 25 {
+        return 0;
+    }
+
+    let preferred = (content_height / 4).clamp(7, 12);
+    preferred.min(content_height.saturating_sub(14))
+}
+
+fn side_panel_width(width: u16) -> u16 {
+    match width {
+        0..=109 => 22,
+        110..=139 => 26,
+        _ => 31,
+    }
 }
 
 fn draw_panes(frame: &mut Frame<'_>, area: Rect, app: &App) {
@@ -291,6 +388,251 @@ fn draw_compact_dashboard(frame: &mut Frame<'_>, area: Rect, snapshot: &SystemSn
         &mut y,
         truncate(&animated_flow(tick), area.width as usize),
     );
+}
+
+fn draw_system_sidebar(frame: &mut Frame<'_>, area: Rect, snapshot: &SystemSnapshot, tick: u64) {
+    let inner = draw_panel(frame, area, "PANEL | SYSTEM");
+    if inner.height == 0 {
+        return;
+    }
+
+    let mut y = inner.y;
+    draw_line(
+        frame,
+        inner,
+        &mut y,
+        truncate(
+            &format!("HOST {}", snapshot.host_name),
+            inner.width as usize,
+        ),
+    );
+    draw_line(
+        frame,
+        inner,
+        &mut y,
+        truncate(&snapshot.os_name, inner.width as usize),
+    );
+    draw_line(
+        frame,
+        inner,
+        &mut y,
+        truncate(
+            &format!("kernel {}", snapshot.kernel_version),
+            inner.width as usize,
+        ),
+    );
+    draw_line(
+        frame,
+        inner,
+        &mut y,
+        format!("uptime {}", format_duration(snapshot.uptime_secs)),
+    );
+    draw_gap(&mut y, inner.bottom());
+
+    draw_section_label(frame, inner, &mut y, "CPU USAGE");
+    draw_gauge_row(frame, inner, &mut y, "total", snapshot.cpu_usage, ACCENT);
+    draw_sparkline_row(
+        frame,
+        inner,
+        &mut y,
+        "load",
+        &snapshot.cpu_history,
+        Some(100),
+        TRACE,
+    );
+    for core in snapshot.cpu_cores.iter().take(2) {
+        draw_line(
+            frame,
+            inner,
+            &mut y,
+            format!(
+                "{} {} {:>4.0}%",
+                truncate(&core.name, 5),
+                ascii_bar(core.usage, inner.width.saturating_sub(11) as usize),
+                core.usage
+            ),
+        );
+    }
+    draw_gap(&mut y, inner.bottom());
+
+    draw_section_label(frame, inner, &mut y, "MEMORY");
+    draw_gauge_row(frame, inner, &mut y, "RAM", snapshot.memory_percent, ACCENT);
+    draw_memory_grid(frame, inner, &mut y, snapshot.memory_percent);
+    draw_line(
+        frame,
+        inner,
+        &mut y,
+        truncate(
+            &format!(
+                "{} / {}",
+                format_bytes(snapshot.memory_used),
+                format_bytes(snapshot.memory_total)
+            ),
+            inner.width as usize,
+        ),
+    );
+    draw_gap(&mut y, inner.bottom());
+
+    draw_section_label(frame, inner, &mut y, "DISK");
+    for disk in snapshot
+        .disks
+        .iter()
+        .take(inner.bottom().saturating_sub(y) as usize)
+    {
+        draw_line(
+            frame,
+            inner,
+            &mut y,
+            truncate(
+                &format!(
+                    "{} {}",
+                    short_mount(&disk.mount),
+                    percent_label(disk.percent)
+                ),
+                inner.width as usize,
+            ),
+        );
+    }
+
+    if y < inner.bottom() {
+        draw_line(
+            frame,
+            inner,
+            &mut y,
+            truncate(&animated_route(tick), inner.width as usize),
+        );
+    }
+}
+
+fn draw_network_sidebar(frame: &mut Frame<'_>, area: Rect, snapshot: &SystemSnapshot, tick: u64) {
+    let inner = draw_panel(frame, area, "PANEL | NETWORK");
+    if inner.height == 0 {
+        return;
+    }
+
+    let mut y = inner.y;
+    draw_section_label(frame, inner, &mut y, "NETWORK STATUS");
+    draw_line(
+        frame,
+        inner,
+        &mut y,
+        truncate(
+            &format!(
+                "iface {}",
+                snapshot.active_interface.as_deref().unwrap_or("N/A")
+            ),
+            inner.width as usize,
+        ),
+    );
+    draw_line(
+        frame,
+        inner,
+        &mut y,
+        truncate(
+            &format!("IPv4 {}", snapshot.primary_ipv4.as_deref().unwrap_or("N/A")),
+            inner.width as usize,
+        ),
+    );
+    draw_line(
+        frame,
+        inner,
+        &mut y,
+        truncate(
+            &format!("IPv6 {}", snapshot.primary_ipv6.as_deref().unwrap_or("N/A")),
+            inner.width as usize,
+        ),
+    );
+    draw_line(
+        frame,
+        inner,
+        &mut y,
+        truncate(
+            &format!(
+                "in {} out {}",
+                format_bytes(snapshot.total_received),
+                format_bytes(snapshot.total_transmitted)
+            ),
+            inner.width as usize,
+        ),
+    );
+    draw_gap(&mut y, inner.bottom());
+
+    draw_section_label(frame, inner, &mut y, "DOWN TRAFFIC");
+    draw_line(
+        frame,
+        inner,
+        &mut y,
+        truncate(
+            &format!("rate {}", rate_label(snapshot.rx_per_sec)),
+            inner.width as usize,
+        ),
+    );
+    let down_height = chart_height(inner, y, 5);
+    draw_series_chart(
+        frame,
+        Rect::new(inner.x, y, inner.width, down_height),
+        &snapshot.rx_history,
+        ACCENT,
+    );
+    y = y.saturating_add(down_height);
+    draw_gap(&mut y, inner.bottom());
+
+    draw_section_label(frame, inner, &mut y, "UP TRAFFIC");
+    draw_line(
+        frame,
+        inner,
+        &mut y,
+        truncate(
+            &format!("rate {}", rate_label(snapshot.tx_per_sec)),
+            inner.width as usize,
+        ),
+    );
+    let up_height = chart_height(inner, y, 5);
+    draw_series_chart(
+        frame,
+        Rect::new(inner.x, y, inner.width, up_height),
+        &snapshot.tx_history,
+        TRACE,
+    );
+    y = y.saturating_add(up_height);
+    draw_gap(&mut y, inner.bottom());
+
+    draw_section_label(frame, inner, &mut y, "INTERFACES");
+    for interface in snapshot
+        .interfaces
+        .iter()
+        .take(inner.bottom().saturating_sub(y) as usize)
+    {
+        let state = match interface.is_up {
+            Some(true) => "up",
+            Some(false) => "down",
+            None => "N/A",
+        };
+        draw_line(
+            frame,
+            inner,
+            &mut y,
+            truncate(
+                &format!(
+                    "{} {} rx {} tx {}",
+                    interface.name,
+                    state,
+                    format_bytes(interface.received),
+                    format_bytes(interface.transmitted)
+                ),
+                inner.width as usize,
+            ),
+        );
+    }
+
+    if y < inner.bottom() {
+        draw_line(
+            frame,
+            inner,
+            &mut y,
+            truncate(&animated_flow(tick), inner.width as usize),
+        );
+    }
 }
 
 fn draw_system_card(frame: &mut Frame<'_>, area: Rect, snapshot: &SystemSnapshot, tick: u64) {
@@ -641,95 +983,184 @@ fn draw_filesystem(frame: &mut Frame<'_>, area: Rect) {
 
 fn draw_keyboard(frame: &mut Frame<'_>, area: Rect, app: &App) {
     let inner = draw_panel(frame, area, "Keyboard");
-    let alpha_rows: [&[&str]; 5] = [
-        &[
-            "ESC", "~", "1", "2", "3", "4", "5", "6", "7", "8", "9", "0", "-", "=",
-        ],
-        &[
-            "TAB", "Q", "W", "E", "R", "T", "Y", "U", "I", "O", "P", "{", "}", "\\",
-        ],
-        &[
-            "CAPS", "A", "S", "D", "F", "G", "H", "J", "K", "L", ";", "'",
-        ],
-        &["SHIFT", "Z", "X", "C", "V", "B", "N", "M", ",", ".", "/"],
-        &["CTRL", "FN", "CMD", "ALT", "SPACE", "ALTGR", "MENU", "CTRL"],
-    ];
-
-    if inner.width >= 74 {
-        let chunks = Layout::default()
-            .direction(Direction::Horizontal)
-            .constraints([Constraint::Min(40), Constraint::Length(19)])
-            .split(inner);
-        draw_alpha_keys(frame, chunks[0], &alpha_rows, app);
-        draw_command_keys(frame, chunks[1], app);
+    if inner.width == 0 || inner.height == 0 {
         return;
     }
 
-    let compact_rows: [&[&str]; 5] = [
-        &[
-            "ESC", "~", "1", "2", "3", "4", "5", "6", "7", "8", "9", "0", "-", "=", "BACK",
-        ],
-        &[
-            "TAB", "Q", "W", "E", "R", "T", "Y", "U", "I", "O", "P", "{", "}", "\\",
-        ],
-        &[
-            "CAPS", "A", "S", "D", "F", "G", "H", "J", "K", "L", ";", "'",
-        ],
-        &[
-            "SHIFT", "Z", "X", "C", "V", "B", "N", "M", ",", ".", "/", "SHIFT",
-        ],
-        &["CTRL", "FN", "CMD", "ALT", "SPACE", "ALTGR", "MENU", "CTRL"],
-    ];
+    if inner.width < 70 || inner.height < 5 {
+        draw_compact_keyboard(frame, inner, app);
+        return;
+    }
 
-    draw_alpha_keys(frame, inner, &compact_rows, app);
+    draw_full_keyboard(frame, inner, app);
 }
 
-fn draw_alpha_keys(frame: &mut Frame<'_>, area: Rect, rows: &[&[&str]], app: &App) {
-    let max_rows = area.height.min(rows.len() as u16);
-    for (offset, row) in rows.iter().take(max_rows as usize).enumerate() {
+#[derive(Debug, Clone, Copy)]
+struct KeySpec {
+    label: &'static str,
+    width: u16,
+}
+
+fn key(label: &'static str, width: u16) -> KeySpec {
+    KeySpec { label, width }
+}
+
+fn draw_full_keyboard(frame: &mut Frame<'_>, area: Rect, app: &App) {
+    let row1 = [
+        key("ESC", 5),
+        key("~", 3),
+        key("1", 3),
+        key("2", 3),
+        key("3", 3),
+        key("4", 3),
+        key("5", 3),
+        key("6", 3),
+        key("7", 3),
+        key("8", 3),
+        key("9", 3),
+        key("0", 3),
+        key("-", 3),
+        key("=", 3),
+        key("BACK", 7),
+    ];
+    let row2 = [
+        key("TAB", 6),
+        key("Q", 3),
+        key("W", 3),
+        key("E", 3),
+        key("R", 3),
+        key("T", 3),
+        key("Y", 3),
+        key("U", 3),
+        key("I", 3),
+        key("O", 3),
+        key("P", 3),
+        key("{", 3),
+        key("}", 3),
+        key("\\", 4),
+    ];
+    let row3 = [
+        key("CAPS", 7),
+        key("A", 3),
+        key("S", 3),
+        key("D", 3),
+        key("F", 3),
+        key("G", 3),
+        key("H", 3),
+        key("J", 3),
+        key("K", 3),
+        key("L", 3),
+        key(";", 3),
+        key("'", 3),
+        key("ENTER", 8),
+    ];
+    let row4 = [
+        key("SHIFT", 8),
+        key("Z", 3),
+        key("X", 3),
+        key("C", 3),
+        key("V", 3),
+        key("B", 3),
+        key("N", 3),
+        key("M", 3),
+        key(",", 3),
+        key(".", 3),
+        key("/", 3),
+        key("SHIFT", 8),
+    ];
+    let row5 = [
+        key("CTRL", 6),
+        key("FN", 4),
+        key("ALT", 5),
+        key("SPACE", 24),
+        key("ALTGR", 7),
+        key("CTRL", 6),
+    ];
+    let rows: [(&[KeySpec], u16); 5] = [(&row1, 0), (&row2, 2), (&row3, 4), (&row4, 6), (&row5, 8)];
+
+    for (offset, (row, indent)) in rows.iter().enumerate().take(area.height as usize) {
+        draw_key_specs(
+            frame,
+            area,
+            area.y.saturating_add(offset as u16),
+            *indent,
+            row,
+            app,
+        );
+    }
+
+    if area.height > 5 {
+        let y = area.y.saturating_add(5);
+        let cluster_width = 17.min(area.width);
+        let x = area
+            .x
+            .saturating_add(area.width.saturating_sub(cluster_width));
+        draw_key_cell(frame, Rect::new(x.saturating_add(6), y, 5, 1), "UP", app);
+        if y.saturating_add(1) < area.bottom() {
+            let y = y.saturating_add(1);
+            draw_key_cell(frame, Rect::new(x, y, 5, 1), "LEFT", app);
+            draw_key_cell(frame, Rect::new(x.saturating_add(6), y, 5, 1), "DOWN", app);
+            draw_key_cell(
+                frame,
+                Rect::new(x.saturating_add(12), y, 5, 1),
+                "RIGHT",
+                app,
+            );
+        }
+    }
+}
+
+fn draw_compact_keyboard(frame: &mut Frame<'_>, area: Rect, app: &App) {
+    let rows: [&[&str]; 5] = [
+        &[
+            "ESC", "1", "2", "3", "4", "5", "6", "7", "8", "9", "0", "BACK",
+        ],
+        &["TAB", "Q", "W", "E", "R", "T", "Y", "U", "I", "O", "P"],
+        &["CAPS", "A", "S", "D", "F", "G", "H", "J", "K", "L", "ENTER"],
+        &["SHIFT", "Z", "X", "C", "V", "B", "N", "M", "/", "SHIFT"],
+        &["CTRL", "ALT", "SPACE", "UP", "LEFT", "DOWN", "RIGHT"],
+    ];
+
+    for (offset, row) in rows.iter().take(area.height as usize).enumerate() {
         draw_key_row(frame, area, area.y.saturating_add(offset as u16), row, app);
     }
 }
 
-fn draw_command_keys(frame: &mut Frame<'_>, area: Rect, app: &App) {
-    if area.height == 0 {
-        return;
-    }
-
-    draw_key_row(frame, area, area.y, &["BACK"], app);
-    if area.height > 1 {
-        draw_key_row(frame, area, area.y.saturating_add(1), &["ENTER"], app);
-    }
-    if area.height > 3 {
-        draw_key_row(frame, area, area.y.saturating_add(3), &["SHIFT"], app);
-    }
-    if area.height > 4 {
-        draw_arrow_cluster(frame, area, area.y.saturating_add(4), app);
-    }
-}
-
-fn draw_arrow_cluster(frame: &mut Frame<'_>, area: Rect, y: u16, app: &App) {
+fn draw_key_specs(
+    frame: &mut Frame<'_>,
+    area: Rect,
+    y: u16,
+    indent: u16,
+    specs: &[KeySpec],
+    app: &App,
+) {
     if y >= area.bottom() {
         return;
     }
 
-    let cell_width = (area.width / 3).max(1);
-    let widths = [
-        cell_width,
-        cell_width,
-        area.width.saturating_sub(cell_width.saturating_mul(2)),
-    ];
-    let x0 = area.x;
-    let x1 = area.x.saturating_add(widths[0]);
-    let x2 = x1.saturating_add(widths[1]);
+    let total_width = specs
+        .iter()
+        .fold(indent, |acc, spec| acc.saturating_add(spec.width))
+        .saturating_add(specs.len().saturating_sub(1) as u16);
+    let scale = if total_width > area.width {
+        area.width as f32 / total_width as f32
+    } else {
+        1.0
+    };
+    let mut x = area
+        .x
+        .saturating_add(((indent as f32) * scale).round() as u16);
 
-    draw_key_cell(frame, Rect::new(x1, y, widths[1], 1), "UP", app);
+    for spec in specs {
+        if x >= area.right() {
+            break;
+        }
 
-    if y.saturating_add(1) < area.bottom() {
-        let y = y.saturating_add(1);
-        draw_key_cell(frame, Rect::new(x0, y, widths[0], 1), "LEFT", app);
-        draw_key_cell(frame, Rect::new(x1, y, widths[1], 1), "DOWN", app);
-        draw_key_cell(frame, Rect::new(x2, y, widths[2], 1), "RIGHT", app);
+        let width = (((spec.width as f32) * scale).round() as u16)
+            .max(1)
+            .min(area.right().saturating_sub(x));
+        draw_key_cell(frame, Rect::new(x, y, width, 1), spec.label, app);
+        x = x.saturating_add(width).saturating_add(1);
     }
 }
 
@@ -881,6 +1312,94 @@ fn status_lines(info: &str, height: u16, width: u16, tick: u64) -> Vec<Line<'sta
         .into_iter()
         .map(|line| Line::from(truncate(&line, width)))
         .collect()
+}
+
+fn draw_section_label(frame: &mut Frame<'_>, area: Rect, y: &mut u16, label: &str) {
+    if *y >= area.bottom() {
+        return;
+    }
+
+    frame.render_widget(
+        Paragraph::new(truncate(label, area.width as usize)).style(
+            Style::default()
+                .fg(ACCENT)
+                .bg(BG)
+                .add_modifier(Modifier::BOLD),
+        ),
+        Rect::new(area.x, *y, area.width, 1),
+    );
+    *y = y.saturating_add(1);
+}
+
+fn draw_memory_grid(frame: &mut Frame<'_>, area: Rect, y: &mut u16, percent: Option<f32>) {
+    let height = area.bottom().saturating_sub(*y).min(3);
+    if height == 0 || area.width == 0 {
+        return;
+    }
+
+    let cells = usize::from(height) * usize::from(area.width);
+    let filled = percent
+        .map(|value| ((value.clamp(0.0, 100.0) / 100.0) * cells as f32).round() as usize)
+        .unwrap_or(0)
+        .min(cells);
+
+    for row in 0..height {
+        let mut line = String::with_capacity(area.width as usize);
+        for column in 0..area.width {
+            let index = usize::from(row) * usize::from(area.width) + usize::from(column);
+            line.push(if index < filled { '#' } else { '.' });
+        }
+        frame.render_widget(
+            Paragraph::new(line).style(Style::default().fg(TEXT).bg(BG)),
+            Rect::new(area.x, y.saturating_add(row), area.width, 1),
+        );
+    }
+
+    *y = y.saturating_add(height);
+}
+
+fn chart_height(area: Rect, y: u16, preferred: u16) -> u16 {
+    area.bottom().saturating_sub(y).min(preferred)
+}
+
+fn draw_series_chart(frame: &mut Frame<'_>, area: Rect, data: &[u64], color: Color) {
+    if area.width == 0 || area.height == 0 {
+        return;
+    }
+
+    let width = area.width as usize;
+    let height = area.height as usize;
+    let start = data.len().saturating_sub(width);
+    let samples = &data[start..];
+    let max_value = samples.iter().copied().max().unwrap_or(1).max(1);
+    let left_padding = width.saturating_sub(samples.len());
+    let mut lines = Vec::with_capacity(height);
+
+    for row in 0..height {
+        let threshold = (((height - row) as u64 * max_value) + height as u64 - 1) / height as u64;
+        let mut line = String::with_capacity(width);
+        for column in 0..width {
+            if column < left_padding {
+                line.push(' ');
+                continue;
+            }
+
+            let value = samples[column - left_padding];
+            if value >= threshold {
+                line.push('#');
+            } else if (row + column) % 6 == 0 {
+                line.push('.');
+            } else {
+                line.push(' ');
+            }
+        }
+        lines.push(Line::from(line));
+    }
+
+    frame.render_widget(
+        Paragraph::new(lines).style(Style::default().fg(color).bg(BG)),
+        area,
+    );
 }
 
 fn draw_line(frame: &mut Frame<'_>, area: Rect, y: &mut u16, text: String) {
@@ -1120,4 +1639,28 @@ fn truncate(value: &str, max_chars: usize) -> String {
         output.push('~');
     }
     output
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn wide_terminal_uses_edex_regions() {
+        let regions = Regions::from(Rect::new(0, 0, 130, 36), true);
+
+        assert!(matches!(regions.system, Some(SystemRegion::SidePanel(_))));
+        assert!(regions.network.is_some());
+        assert!(regions.accessory.is_some());
+        assert!(regions.panes.width >= 34);
+    }
+
+    #[test]
+    fn narrow_terminal_keeps_pane_area_usable() {
+        let regions = Regions::from(Rect::new(0, 0, 70, 22), true);
+
+        assert!(matches!(regions.system, Some(SystemRegion::Dashboard(_))));
+        assert!(regions.network.is_none());
+        assert!(regions.panes.height > 0);
+    }
 }

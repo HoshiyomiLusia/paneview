@@ -1,0 +1,145 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="900" viewBox="0 0 1600 900" role="img" aria-label="PaneView terminal layout preview">
+  <defs>
+    <style>
+      .bg { fill: #03090b; }
+      .grid { stroke: #153237; stroke-width: 1; opacity: .55; }
+      .panel { fill: #050d10; stroke: #6aa6a5; stroke-width: 1; }
+      .line { stroke: #6aa6a5; stroke-width: 1; opacity: .55; }
+      .accent { fill: #b9f4ef; }
+      .text { fill: #99d6d0; font: 18px ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+      .small { fill: #76a19e; font: 14px ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+      .tiny { fill: #69908d; font: 12px ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+      .title { fill: #b9f4ef; font: 700 15px ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; letter-spacing: 1px; }
+      .tab { fill: #0b171a; stroke: #6aa6a5; stroke-width: 1; }
+      .tab-on { fill: #a8d6d3; stroke: #a8d6d3; stroke-width: 1; }
+      .tab-text { fill: #a8d6d3; font: 700 15px ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+      .tab-text-on { fill: #061013; font: 700 15px ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+      .key { fill: #071115; stroke: #5c8583; stroke-width: 1; }
+      .key-text { fill: #b9f4ef; font: 700 14px ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+    </style>
+    <pattern id="dotgrid" width="24" height="24" patternUnits="userSpaceOnUse">
+      <path d="M 24 0 L 0 0 0 24" class="grid"/>
+      <circle cx="2" cy="2" r="1" fill="#16383b" opacity=".75"/>
+    </pattern>
+  </defs>
+
+  <rect width="1600" height="900" class="bg"/>
+  <rect width="1600" height="900" fill="url(#dotgrid)" opacity=".75"/>
+  <rect x="30" y="30" width="1540" height="840" fill="none" stroke="#264a4f"/>
+
+  <rect x="50" y="50" width="250" height="600" class="panel"/>
+  <text x="70" y="76" class="title">PANEL | SYSTEM</text>
+  <text x="70" y="128" class="accent" style="font:42px ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;">20:27:46</text>
+  <text x="70" y="166" class="small">HOST paneview</text>
+  <text x="70" y="192" class="small">Linux / macOS</text>
+  <text x="70" y="218" class="small">uptime 1:09:51</text>
+  <line x1="70" y1="245" x2="280" y2="245" class="line"/>
+  <text x="70" y="276" class="title">CPU USAGE</text>
+  <text x="70" y="306" class="small">total</text>
+  <rect x="125" y="290" width="145" height="18" fill="#132428"/>
+  <rect x="125" y="290" width="84" height="18" fill="#9fd5d0"/>
+  <polyline points="70,350 92,330 114,360 136,320 158,345 180,342 202,350 224,332 246,340 270,330" fill="none" stroke="#b9f4ef" stroke-width="3"/>
+  <text x="70" y="398" class="title">MEMORY</text>
+  <rect x="70" y="420" width="200" height="10" fill="#132428"/>
+  <rect x="70" y="420" width="126" height="10" fill="#9fd5d0"/>
+  <text x="70" y="458" class="small">9.4 GiB / 16.0 GiB</text>
+  <line x1="70" y1="485" x2="280" y2="485" class="line"/>
+  <text x="70" y="516" class="title">DISK</text>
+  <text x="70" y="546" class="small">/ 42%</text>
+  <text x="70" y="572" class="small">workspace 57%</text>
+
+  <rect x="320" y="50" width="950" height="600" class="panel"/>
+  <rect x="320" y="50" width="190" height="34" class="tab-on"/>
+  <text x="385" y="73" class="tab-text-on">MAIN SHELL</text>
+  <rect x="510" y="50" width="190" height="34" class="tab"/>
+  <text x="575" y="73" class="tab-text">PANE 2</text>
+  <rect x="700" y="50" width="190" height="34" class="tab"/>
+  <text x="765" y="73" class="tab-text">EMPTY</text>
+  <rect x="890" y="50" width="190" height="34" class="tab"/>
+  <text x="955" y="73" class="tab-text">EMPTY</text>
+  <rect x="1080" y="50" width="190" height="34" class="tab"/>
+  <text x="1145" y="73" class="tab-text">EMPTY</text>
+  <rect x="340" y="105" width="910" height="520" fill="#03090b" stroke="#31575c"/>
+  <text x="360" y="145" class="small">Welcome to PaneView v0.1.7 - PTY terminal workspace</text>
+  <text x="360" y="178" class="accent">~/PaneView $ paneview --version</text>
+  <text x="360" y="210" class="text">paneview 0.1.7 (release)</text>
+  <text x="360" y="265" class="accent">~/PaneView $ cargo test</text>
+  <text x="360" y="298" class="text">running 5 tests</text>
+  <text x="360" y="330" class="text">test layout::vertical_split ... ok</text>
+  <text x="360" y="362" class="text">test tui::wide_terminal_uses_edex_regions ... ok</text>
+  <text x="360" y="420" class="accent">~/PaneView $</text>
+
+  <rect x="1290" y="50" width="260" height="600" class="panel"/>
+  <text x="1310" y="76" class="title">PANEL | NETWORK</text>
+  <line x1="1310" y1="100" x2="1530" y2="100" class="line"/>
+  <text x="1310" y="132" class="title">NETWORK STATUS</text>
+  <text x="1310" y="162" class="small">iface eth0</text>
+  <text x="1310" y="188" class="small">IPv4 172.17.0.2</text>
+  <text x="1310" y="214" class="small">IPv6 N/A</text>
+  <text x="1310" y="240" class="small">in 158 MiB out 1.32 GiB</text>
+  <line x1="1310" y1="270" x2="1530" y2="270" class="line"/>
+  <text x="1310" y="302" class="title">DOWN TRAFFIC</text>
+  <polyline points="1310,382 1340,350 1370,365 1400,310 1430,390 1460,340 1490,326 1530,372" fill="none" stroke="#b9f4ef" stroke-width="3"/>
+  <text x="1310" y="428" class="title">UP TRAFFIC</text>
+  <polyline points="1310,540 1340,525 1370,470 1400,500 1430,455 1460,515 1490,480 1530,445" fill="none" stroke="#70d780" stroke-width="3"/>
+  <line x1="1310" y1="570" x2="1530" y2="570" class="line"/>
+  <text x="1310" y="604" class="small">interfaces: eth0 lo docker0</text>
+
+  <rect x="50" y="670" width="250" height="180" class="panel"/>
+  <text x="70" y="696" class="title">FILESYSTEM</text>
+  <text x="70" y="730" class="tiny">/workspace/PaneView</text>
+  <text x="70" y="760" class="small">[d] .github</text>
+  <text x="70" y="786" class="small">[d] docs</text>
+  <text x="70" y="812" class="small">[d] src</text>
+  <text x="180" y="760" class="small">[f] Cargo.toml</text>
+  <text x="180" y="786" class="small">[f] README.md</text>
+  <text x="180" y="812" class="small">[f] install.sh</text>
+
+  <rect x="320" y="670" width="1230" height="180" class="panel"/>
+  <text x="340" y="696" class="title">KEYBOARD</text>
+  <g transform="translate(340 725)">
+    <rect x="0" y="0" width="66" height="28" class="key"/><text x="20" y="19" class="key-text">ESC</text>
+    <rect x="78" y="0" width="54" height="28" class="key"/><text x="102" y="19" class="key-text">1</text>
+    <rect x="144" y="0" width="54" height="28" class="key"/><text x="168" y="19" class="key-text">2</text>
+    <rect x="210" y="0" width="54" height="28" class="key"/><text x="234" y="19" class="key-text">3</text>
+    <rect x="276" y="0" width="54" height="28" class="key"/><text x="300" y="19" class="key-text">4</text>
+    <rect x="342" y="0" width="54" height="28" class="key"/><text x="366" y="19" class="key-text">5</text>
+    <rect x="408" y="0" width="54" height="28" class="key"/><text x="432" y="19" class="key-text">6</text>
+    <rect x="474" y="0" width="54" height="28" class="key"/><text x="498" y="19" class="key-text">7</text>
+    <rect x="540" y="0" width="54" height="28" class="key"/><text x="564" y="19" class="key-text">8</text>
+    <rect x="606" y="0" width="54" height="28" class="key"/><text x="630" y="19" class="key-text">9</text>
+    <rect x="672" y="0" width="54" height="28" class="key"/><text x="696" y="19" class="key-text">0</text>
+    <rect x="740" y="0" width="120" height="28" class="key"/><text x="780" y="19" class="key-text">BACK</text>
+    <rect x="30" y="38" width="78" height="28" class="key"/><text x="54" y="57" class="key-text">TAB</text>
+    <rect x="120" y="38" width="54" height="28" class="key"/><text x="144" y="57" class="key-text">Q</text>
+    <rect x="186" y="38" width="54" height="28" class="key"/><text x="210" y="57" class="key-text">W</text>
+    <rect x="252" y="38" width="54" height="28" class="key"/><text x="276" y="57" class="key-text">E</text>
+    <rect x="318" y="38" width="54" height="28" class="key"/><text x="342" y="57" class="key-text">R</text>
+    <rect x="384" y="38" width="54" height="28" class="key"/><text x="408" y="57" class="key-text">T</text>
+    <rect x="450" y="38" width="54" height="28" class="key"/><text x="474" y="57" class="key-text">Y</text>
+    <rect x="516" y="38" width="54" height="28" class="key"/><text x="540" y="57" class="key-text">U</text>
+    <rect x="582" y="38" width="54" height="28" class="key"/><text x="606" y="57" class="key-text">I</text>
+    <rect x="648" y="38" width="54" height="28" class="key"/><text x="672" y="57" class="key-text">O</text>
+    <rect x="714" y="38" width="54" height="28" class="key"/><text x="738" y="57" class="key-text">P</text>
+    <rect x="782" y="38" width="120" height="28" class="key"/><text x="818" y="57" class="key-text">ENTER</text>
+    <rect x="60" y="76" width="95" height="28" class="key"/><text x="82" y="95" class="key-text">SHIFT</text>
+    <rect x="167" y="76" width="54" height="28" class="key"/><text x="191" y="95" class="key-text">Z</text>
+    <rect x="233" y="76" width="54" height="28" class="key"/><text x="257" y="95" class="key-text">X</text>
+    <rect x="299" y="76" width="54" height="28" class="key"/><text x="323" y="95" class="key-text">C</text>
+    <rect x="365" y="76" width="54" height="28" class="key"/><text x="389" y="95" class="key-text">V</text>
+    <rect x="431" y="76" width="54" height="28" class="key"/><text x="455" y="95" class="key-text">B</text>
+    <rect x="497" y="76" width="54" height="28" class="key"/><text x="521" y="95" class="key-text">N</text>
+    <rect x="563" y="76" width="54" height="28" class="key"/><text x="587" y="95" class="key-text">M</text>
+    <rect x="640" y="76" width="95" height="28" class="key"/><text x="662" y="95" class="key-text">SHIFT</text>
+    <rect x="760" y="76" width="46" height="28" class="key"/><text x="776" y="95" class="key-text">UP</text>
+    <rect x="820" y="76" width="54" height="28" class="key"/><text x="838" y="95" class="key-text">LEFT</text>
+    <rect x="886" y="76" width="58" height="28" class="key"/><text x="904" y="95" class="key-text">DOWN</text>
+    <rect x="956" y="76" width="60" height="28" class="key"/><text x="974" y="95" class="key-text">RIGHT</text>
+    <rect x="90" y="114" width="72" height="28" class="key"/><text x="112" y="133" class="key-text">CTRL</text>
+    <rect x="174" y="114" width="54" height="28" class="key"/><text x="196" y="133" class="key-text">FN</text>
+    <rect x="240" y="114" width="68" height="28" class="key"/><text x="262" y="133" class="key-text">ALT</text>
+    <rect x="320" y="114" width="420" height="28" class="key"/><text x="510" y="133" class="key-text">SPACE</text>
+    <rect x="752" y="114" width="84" height="28" class="key"/><text x="772" y="133" class="key-text">ALTGR</text>
+    <rect x="848" y="114" width="72" height="28" class="key"/><text x="870" y="133" class="key-text">CTRL</text>
+  </g>
+</svg>

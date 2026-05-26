@@ -2,31 +2,74 @@
 
 ## Project Overview
 
-PaneView is a Rust terminal UI for PTY-backed split shell panes and local system monitoring on macOS and Linux.
+PaneView is a terminal UI for running PTY-backed split shell panes while watching local system and network status on macOS and Linux.
 
-![PaneView example](docs/demo-preview.png)
+![PaneView terminal preview](docs/demo-preview.svg)
 
-PaneView provides:
+It provides:
 
-- Interactive shell panes backed by real PTYs.
-- Vertical and horizontal splits.
+- Real shell panes backed by PTYs.
+- Vertical and horizontal pane splits.
 - CPU, memory, disk, network, interface, host, kernel, and uptime views.
-- Release-based install, update, and version commands.
+- A release installer, update check, and self-update command.
 
 ## Environment Dependencies
 
-PaneView is distributed as prebuilt binaries. Normal installation does not require Rust, Cargo, Git, a compiler, or a source checkout.
+PaneView is distributed as prebuilt release binaries. Normal users do not need Rust, Cargo, Git, a compiler, or a source checkout.
 
-Supported release targets:
+The installer only needs a network downloader, archive extraction, and valid CA certificates.
 
-- macOS Apple Silicon: `aarch64-apple-darwin`
-- macOS Intel: `x86_64-apple-darwin`
-- Linux ARM64: `aarch64-unknown-linux-gnu`
-- Linux x86_64: `x86_64-unknown-linux-gnu`
+### macOS
+
+Supported:
+
+- Apple Silicon: `aarch64-apple-darwin`
+- Intel: `x86_64-apple-darwin`
+
+Check the required tools only if installation fails:
+
+```bash
+command -v curl
+command -v tar
+```
+
+`curl` and `tar` are included with normal macOS installations. If either command is missing, install the Apple command line tools or use another downloader and extract the matching archive from GitHub Releases.
+
+### Linux
+
+Supported:
+
+- ARM64: `aarch64-unknown-linux-gnu`
+- x86_64: `x86_64-unknown-linux-gnu`
+
+Check the required tools only if installation fails:
+
+```bash
+command -v curl
+command -v tar
+```
+
+Install missing runtime tools with your distribution package manager:
+
+```bash
+# Debian / Ubuntu
+sudo apt-get update
+sudo apt-get install -y curl tar ca-certificates
+```
+
+```bash
+# Fedora
+sudo dnf install curl tar ca-certificates
+```
+
+```bash
+# Arch Linux
+sudo pacman -S curl tar ca-certificates
+```
+
+### Windows
 
 Windows is not supported.
-
-The one-line installer uses `curl` and `tar` to download and extract the matching release archive. If those tools are missing, install them with your system package manager or download the archive manually from the GitHub Releases page.
 
 ## Project Installation
 
@@ -36,17 +79,7 @@ Install the latest release:
 curl -fsSL https://raw.githubusercontent.com/HoshiyomiLusia/paneview/main/install.sh | sh
 ```
 
-Run:
-
-```bash
-paneview
-```
-
-Install a specific version:
-
-```bash
-PANEVIEW_VERSION="v0.1.6" sh -c 'curl -fsSL https://raw.githubusercontent.com/HoshiyomiLusia/paneview/main/install.sh | sh'
-```
+The installer downloads the matching binary archive for the current platform and installs `paneview` into the first writable location it can use.
 
 Install to a custom directory:
 
@@ -54,16 +87,23 @@ Install to a custom directory:
 PANEVIEW_INSTALL_DIR="$HOME/bin" sh -c 'curl -fsSL https://raw.githubusercontent.com/HoshiyomiLusia/paneview/main/install.sh | sh'
 ```
 
-Build from source only if you are developing PaneView:
+Install a specific release:
 
 ```bash
-cargo install --git https://github.com/HoshiyomiLusia/paneview.git --locked
+PANEVIEW_VERSION="v0.1.7" sh -c 'curl -fsSL https://raw.githubusercontent.com/HoshiyomiLusia/paneview/main/install.sh | sh'
 ```
 
 ## Usage
 
+Run the TUI:
+
 ```bash
 paneview
+```
+
+Other commands:
+
+```bash
 paneview --version
 paneview check-update
 paneview update
@@ -73,17 +113,17 @@ Keybindings:
 
 | Key | Action |
 | --- | --- |
-| `Ctrl+Q` | Quit |
-| `Ctrl+H/J/K/L` | Move focus |
-| `Ctrl+\` | Vertical split |
-| `Ctrl+-` | Horizontal split |
-| `Ctrl+N` | New pane |
-| `Ctrl+W` | Close focused pane |
-| `Ctrl+S` | Toggle system panel |
-| `Ctrl+C` | Send interrupt to focused pane |
+| `Ctrl+Q` | Quit PaneView |
+| `Ctrl+H/J/K/L` | Move pane focus |
+| `Ctrl+\` | Split focused pane vertically |
+| `Ctrl+-` | Split focused pane horizontally |
+| `Ctrl+N` | Create a new pane |
+| `Ctrl+W` | Close the focused pane |
+| `Ctrl+S` | Toggle the system panel |
+| `Ctrl+C` | Send interrupt to the focused pane process |
 
 Notes:
 
 - Each pane starts the user's default shell.
 - Unavailable system metrics are shown as `N/A`.
-- PaneView is an MVP, not a full tmux replacement.
+- PaneView is not a tmux replacement.
