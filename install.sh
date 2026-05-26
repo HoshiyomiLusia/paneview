@@ -121,6 +121,8 @@ require_cmd curl
 require_cmd tar
 require_cmd mkdir
 require_cmd chmod
+require_cmd cp
+require_cmd mv
 
 target="$(detect_target)"
 archive="paneview-${target}.tar.gz"
@@ -147,9 +149,14 @@ fi
 
 mkdir -p "$install_dir"
 chmod 755 "$tmp_dir/$BIN_NAME"
-cp "$tmp_dir/$BIN_NAME" "$install_dir/$BIN_NAME"
 
-echo "Installed $BIN_NAME to $install_dir/$BIN_NAME"
+target_path="$install_dir/$BIN_NAME"
+staged_path="$install_dir/.${BIN_NAME}.tmp.$$"
+cp "$tmp_dir/$BIN_NAME" "$staged_path"
+chmod 755 "$staged_path"
+mv -f "$staged_path" "$target_path"
+
+echo "Installed $BIN_NAME to $target_path"
 
 case ":$PATH:" in
     *":$install_dir:"*) ;;

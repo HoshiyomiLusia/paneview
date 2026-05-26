@@ -60,9 +60,9 @@
   <rect x="1080" y="50" width="190" height="34" class="tab"/>
   <text x="1145" y="73" class="tab-text">EMPTY</text>
   <rect x="340" y="105" width="910" height="520" fill="#03090b" stroke="#31575c"/>
-  <text x="360" y="145" class="small">Welcome to PaneView v0.1.7 - PTY terminal workspace</text>
+  <text x="360" y="145" class="small">Welcome to PaneView v0.1.8 - PTY terminal workspace</text>
   <text x="360" y="178" class="accent">~/PaneView $ paneview --version</text>
-  <text x="360" y="210" class="text">paneview 0.1.7 (release)</text>
+  <text x="360" y="210" class="text">paneview 0.1.8 (release)</text>
   <text x="360" y="265" class="accent">~/PaneView $ cargo test</text>
   <text x="360" y="298" class="text">running 5 tests</text>
   <text x="360" y="330" class="text">test layout::vertical_split ... ok</text>
