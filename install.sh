@@ -99,8 +99,8 @@ verify_checksum() {
     checksum="$2"
 
     if [ ! -f "$checksum" ]; then
-        echo "warning: checksum file was not downloaded; skipping verification" >&2
-        return
+        echo "error: checksum file was not downloaded; refusing to install unverified binary" >&2
+        exit 1
     fi
 
     if command -v sha256sum >/dev/null 2>&1; then
@@ -118,7 +118,8 @@ verify_checksum() {
         return
     fi
 
-    echo "warning: neither sha256sum nor shasum is available; skipping verification" >&2
+    echo "error: neither sha256sum nor shasum is available; cannot verify download" >&2
+    exit 1
 }
 
 require_cmd uname
@@ -149,7 +150,7 @@ trap cleanup EXIT INT TERM
 
 echo "Downloading $url"
 curl -fL "$url" -o "$tmp_dir/$archive"
-curl -fL "$url.sha256" -o "$tmp_dir/$archive.sha256" || true
+curl -fL "$url.sha256" -o "$tmp_dir/$archive.sha256"
 
 (
     cd "$tmp_dir"

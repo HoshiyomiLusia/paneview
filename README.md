@@ -111,19 +111,52 @@ paneview update
 
 Keybindings:
 
+PaneView uses a **prefix key** (`Ctrl+B`, like tmux) so that shell shortcuts
+such as `Ctrl+C`, `Ctrl+S`, `Ctrl+Q`, `Ctrl+W`, etc. reach the focused
+shell unmodified. Press the prefix, release it, then press the command key.
+
+| Chord | Action |
+| --- | --- |
+| `Ctrl+B  q` | Quit PaneView |
+| `Ctrl+B  h / j / k / l` | Move pane focus (left / down / up / right) |
+| `Ctrl+B  ← / ↓ / ↑ / →` | Same, with arrow keys |
+| `Ctrl+B  |` *(or `\`)* | Split focused pane vertically |
+| `Ctrl+B  -` | Split focused pane horizontally |
+| `Ctrl+B  n` *(or `c`)* | Create a new pane |
+| `Ctrl+B  x` *(or `w`)* | Close the focused pane |
+| `Ctrl+B  s` | Toggle the system dashboard |
+| `Ctrl+B  [` *(or `PageUp`)* | Enter scroll mode for the focused pane |
+
+In scroll mode:
+
 | Key | Action |
 | --- | --- |
-| `Ctrl+Q` | Quit PaneView |
-| `Ctrl+H/J/K/L` | Move pane focus |
-| `Ctrl+\` | Split focused pane vertically |
-| `Ctrl+-` | Split focused pane horizontally |
-| `Ctrl+N` | Create a new pane |
-| `Ctrl+W` | Close the focused pane |
-| `Ctrl+S` | Toggle the system panel |
-| `Ctrl+C` | Send interrupt to the focused pane process |
+| `PageUp / PageDown` *(or `b / f`)* | Scroll one screen |
+| `↑ / ↓` *(or `k / j`)* | Scroll one line |
+| `g / Home`, `G / End` | Jump to the top / bottom of scrollback |
+| `q / Esc` | Leave scroll mode |
+
+The status bar's mode indicator reads `PREFIX` between the prefix and the
+next key, and `SCROLL` while a pane is in scroll mode. The focused pane's
+border turns yellow during scroll mode and the title shows `[scroll +N]`.
 
 Notes:
 
 - Each pane starts the user's default shell.
+- ANSI colours, bold/italic/underline, and the cursor position are rendered
+  inside each pane, so `ls --color`, `vim`, `htop`, etc. look correct.
+- F1–F12, `Ctrl/Alt/Shift+arrows`, and bracketed paste are forwarded to
+  the focused shell.
 - Unavailable system metrics are shown as `N/A`.
 - PaneView is not a tmux replacement.
+
+## License
+
+Licensed under either of:
+
+- Apache License, Version 2.0 ([LICENSE-APACHE](LICENSE-APACHE) or
+  <http://www.apache.org/licenses/LICENSE-2.0>)
+- MIT License ([LICENSE-MIT](LICENSE-MIT) or
+  <https://opensource.org/licenses/MIT>)
+
+at your option.

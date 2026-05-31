@@ -245,4 +245,81 @@ mod tests {
         assert_eq!(rects[&first], Rect::new(0, 0, 50, 20));
         assert_eq!(rects[&third], Rect::new(50, 0, 50, 20));
     }
+
+    #[test]
+    fn next_leaf_wraps_at_end() {
+        let first = PaneId(1);
+        let second = PaneId(2);
+        let third = PaneId(3);
+        let mut layout = PaneLayout::new(first);
+        layout.split(first, second, SplitDirection::Vertical);
+        layout.split(second, third, SplitDirection::Horizontal);
+
+        assert_eq!(layout.next_leaf(first), Some(second));
+        assert_eq!(layout.next_leaf(second), Some(third));
+        // Wraps around.
+        assert_eq!(layout.next_leaf(third), Some(first));
+    }
+
+    #[test]
+    fn previous_leaf_wraps_at_start() {
+        let first = PaneId(1);
+        let second = PaneId(2);
+        let mut layout = PaneLayout::new(first);
+        layout.split(first, second, SplitDirection::Vertical);
+
+        assert_eq!(layout.previous_leaf(first), Some(second));
+        assert_eq!(layout.previous_leaf(second), Some(first));
+    }
+
+    #[test]
+    fn splitting_into_unknown_target_is_noop() {
+        let first = PaneId(1);
+        let mut layout = PaneLayout::new(first);
+        let removed = layout.split(PaneId(99), PaneId(2), SplitDirection::Vertical);
+        assert!(!removed);
+        assert_eq!(layout.leaves(), vec![first]);
+    }
+
+    #[test]
+    fn removing_unknown_pane_does_not_change_layout() {
+        let first = PaneId(1);
+        let mut layout = PaneLayout::new(first);
+        // remove() returns true only if a leaf actually disappeared.
+        assert!(!layout.remove(PaneId(42)));
+        assert_eq!(layout.leaves(), vec![first]);
+    }
+
+    #[test]
+    fn removing_only_remaining_leaf_returns_none_root_unchanged() {
+        // We never want to leave a layout with zero leaves — App enforces
+        // this invariant. Layout itself reports failure by returning false.
+        let first = PaneId(1);
+        let mut layout = PaneLayout::new(first);
+        assert!(!layout.remove(first));
+        assert_eq!(layout.leaves(), vec![first]);
+    }
+
+    #[test]
+    fn nested_splits_produce_disjoint_rects() {
+        let ids: [PaneId; 4] = [PaneId(1), PaneId(2), PaneId(3), PaneId(4)];
+        let mut layout = PaneLayout::new(ids[0]);
+        layout.split(ids[0], ids[1], SplitDirection::Vertical);
+        layout.split(ids[1], ids[2], SplitDirection::Horizontal);
+        layout.split(ids[0], ids[3], SplitDirection::Horizontal);
+
+        let rects = layout.rects(Rect::new(0, 0, 80, 40));
+        // Every leaf gets a non-zero rect.
+        for id in ids {
+            let rect = rects[&id];
+            assert!(rect.width > 0 && rect.height > 0, "{id} got empty rect");
+        }
+        // No two rects share the same origin (a weak but useful uniqueness
+        // signal that the tree placed them in different cells).
+        let mut origins: Vec<(u16, u16)> =
+            ids.iter().map(|id| (rects[id].x, rects[id].y)).collect();
+        origins.sort();
+        origins.dedup();
+        assert_eq!(origins.len(), ids.len());
+    }
 }

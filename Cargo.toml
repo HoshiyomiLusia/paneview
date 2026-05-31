@@ -3,6 +3,14 @@ name = "paneview"
 version = "0.1.7"
 edition = "2024"
 rust-version = "1.95"
+description = "Terminal UI for split PTY shell panes with live system stats on macOS and Linux."
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/HoshiyomiLusia/paneview"
+homepage = "https://github.com/HoshiyomiLusia/paneview"
+readme = "README.md"
+keywords = ["tui", "terminal", "pty", "monitor", "split"]
+categories = ["command-line-utilities"]
+authors = ["HoshiyomiLusia"]
 
 [dependencies]
 anyhow = "1.0.102"
@@ -13,3 +21,16 @@ portable-pty = "0.9.0"
 ratatui = "0.30.0"
 sysinfo = "0.39.2"
 vt100 = "0.16.2"
+
+[lints.rust]
+unsafe_code = "forbid"
+
+[lints.clippy]
+needless_return = "warn"
+redundant_clone = "warn"
+unwrap_used = "warn"
+
+[profile.release]
+lto = "thin"
+codegen-units = 1
+strip = "symbols"

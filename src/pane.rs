@@ -20,6 +20,9 @@ pub struct Pane {
     size: PtySize,
     alive: bool,
     exit_status: Option<String>,
+    /// Rows scrolled back from the live bottom. 0 means we're at the live
+    /// edge and new output is visible immediately.
+    scrollback_offset: usize,
 }
 
 impl Pane {
@@ -68,6 +71,7 @@ impl Pane {
             size,
             alive: true,
             exit_status: None,
+            scrollback_offset: 0,
         })
     }
 
@@ -94,6 +98,9 @@ impl Pane {
 
         self.writer.write_all(bytes)?;
         self.writer.flush()?;
+        // Sending input typically scrolls back to the live edge in most
+        // terminal emulators; mirror that.
+        self.snap_to_live();
         Ok(())
     }
 
@@ -112,11 +119,22 @@ impl Pane {
         };
         let _ = self.master.resize(self.size);
         self.parser.screen_mut().set_size(rows, cols);
+        // Resizing can change the bounded scrollback; reclamp.
+        let max = self.parser.screen().scrollback();
+        if self.scrollback_offset > max {
+            self.scrollback_offset = max;
+        }
     }
 
-    pub fn drain_output(&mut self) {
+    /// Drain queued PTY output into the parser and update child status.
+    ///
+    /// Returns `true` if any bytes were consumed or the child status
+    /// transitioned during this call — useful for an adaptive sleep loop.
+    pub fn drain_output(&mut self) -> bool {
+        let mut activity = false;
         while let Ok(bytes) = self.output_rx.try_recv() {
             self.parser.process(&bytes);
+            activity = true;
         }
 
         if self.alive {
@@ -124,18 +142,65 @@ impl Pane {
                 Ok(Some(status)) => {
                     self.alive = false;
                     self.exit_status = Some(status.to_string());
+                    activity = true;
                 }
                 Ok(None) => {}
                 Err(err) => {
                     self.alive = false;
                     self.exit_status = Some(format!("wait error: {err}"));
+                    activity = true;
                 }
             }
         }
+        activity
     }
 
-    pub fn screen_text(&self) -> String {
-        self.parser.screen().contents()
+    pub fn screen(&self) -> &vt100::Screen {
+        self.parser.screen()
+    }
+
+    /// Cursor position as `(row, col, visible)`. Coordinates are zero-based
+    /// within the pane's rendering area.
+    pub fn cursor(&self) -> (u16, u16, bool) {
+        let screen = self.parser.screen();
+        let (row, col) = screen.cursor_position();
+        (row, col, !screen.hide_cursor())
+    }
+
+    /// Current scrollback offset. 0 == live edge.
+    pub fn scrollback_offset(&self) -> usize {
+        self.scrollback_offset
+    }
+
+    pub fn snap_to_live(&mut self) {
+        if self.scrollback_offset != 0 {
+            self.scrollback_offset = 0;
+            self.parser.screen_mut().set_scrollback(0);
+        }
+    }
+
+    pub fn scroll_by(&mut self, delta: isize) {
+        let new_offset = if delta >= 0 {
+            self.scrollback_offset.saturating_add(delta as usize)
+        } else {
+            self.scrollback_offset.saturating_sub(delta.unsigned_abs())
+        };
+        self.set_scrollback_offset(new_offset);
+    }
+
+    pub fn scroll_to_top(&mut self) {
+        // Setting a huge value is clamped to scrollback_len internally.
+        self.set_scrollback_offset(usize::MAX);
+    }
+
+    pub fn scroll_to_bottom(&mut self) {
+        self.set_scrollback_offset(0);
+    }
+
+    fn set_scrollback_offset(&mut self, offset: usize) {
+        self.parser.screen_mut().set_scrollback(offset);
+        // Read back the value vt100 actually clamped to.
+        self.scrollback_offset = self.parser.screen().scrollback();
     }
 }
 
