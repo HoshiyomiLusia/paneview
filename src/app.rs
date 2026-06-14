@@ -1,4 +1,6 @@
 use std::collections::HashMap;
+use std::fs;
+use std::time::{Duration, Instant};
 
 use anyhow::Context;
 use crossterm::event::{KeyEvent, KeyEventKind};
@@ -11,6 +13,11 @@ use crate::system::{SystemMonitor, SystemSnapshot};
 
 /// One screen of scrollback per page-step.
 const SCROLL_PAGE_LINES: usize = 20;
+/// How often to re-scan the working directory for the filesystem panel.
+/// The cwd doesn't change while PaneView runs (child-shell `cd` doesn't
+/// propagate to the parent), so this only needs to catch external file
+/// additions/removals — once a second is plenty.
+const DIR_REFRESH_INTERVAL: Duration = Duration::from_secs(1);
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum FocusDirection {
@@ -38,6 +45,58 @@ pub struct App {
     animation_tick: u64,
     active_keys: HashMap<&'static str, u64>,
     input_state: InputState,
+    /// Cached working-directory listing for the filesystem panel, refreshed
+    /// at most once per DIR_REFRESH_INTERVAL instead of every frame.
+    dir_listing: DirListing,
+}
+
+/// Snapshot of the working directory shown in the accessory panel.
+pub struct DirListing {
+    pub path: String,
+    pub entries: Vec<String>,
+    refreshed_at: Option<Instant>,
+}
+
+impl DirListing {
+    fn new() -> Self {
+        Self {
+            path: String::new(),
+            entries: Vec::new(),
+            refreshed_at: None,
+        }
+    }
+
+    fn refresh_if_due(&mut self) {
+        let due = match self.refreshed_at {
+            None => true,
+            Some(at) => at.elapsed() >= DIR_REFRESH_INTERVAL,
+        };
+        if !due {
+            return;
+        }
+
+        let path = std::env::current_dir().unwrap_or_else(|_| ".".into());
+        self.path = path.display().to_string();
+        self.entries = fs::read_dir(&path)
+            .map(|read_dir| {
+                let mut names = read_dir
+                    .filter_map(Result::ok)
+                    .map(|entry| {
+                        let name = entry.file_name().to_string_lossy().into_owned();
+                        let prefix = match entry.file_type() {
+                            Ok(file_type) if file_type.is_dir() => "[d]",
+                            Ok(_) => "[f]",
+                            Err(_) => "[?]",
+                        };
+                        format!("{prefix} {name}")
+                    })
+                    .collect::<Vec<_>>();
+                names.sort_by_key(|entry| entry.to_ascii_lowercase());
+                names
+            })
+            .unwrap_or_else(|_| vec!["N/A".to_string()]);
+        self.refreshed_at = Some(Instant::now());
+    }
 }
 
 impl App {
@@ -61,6 +120,7 @@ impl App {
             animation_tick: 0,
             active_keys: HashMap::new(),
             input_state: InputState::new(),
+            dir_listing: DirListing::new(),
         })
     }
 
@@ -78,6 +138,7 @@ impl App {
             }
         }
         self.system.refresh_if_due();
+        self.dir_listing.refresh_if_due();
         activity
     }
 
@@ -179,6 +240,10 @@ impl App {
 
     pub fn cached_rects(&self) -> &HashMap<PaneId, Rect> {
         &self.last_rects
+    }
+
+    pub fn dir_listing(&self) -> &DirListing {
+        &self.dir_listing
     }
 
     pub fn panes_in_layout_order(&self) -> Vec<&Pane> {
@@ -460,6 +525,22 @@ mod tests {
         );
     }
 
+    #[test]
+    fn dir_listing_refreshes_once_then_throttles() {
+        let mut listing = DirListing::new();
+        assert!(listing.refreshed_at.is_none());
+
+        // First refresh populates and stamps the time.
+        listing.refresh_if_due();
+        let first_stamp = listing.refreshed_at;
+        assert!(first_stamp.is_some());
+
+        // An immediate second call is within the throttle window, so the
+        // timestamp must not advance (i.e. no rescan happened).
+        listing.refresh_if_due();
+        assert_eq!(listing.refreshed_at, first_stamp);
+    }
+
     /// Build an `App` shaped object for testing `directional_neighbor`
     /// without spawning PTYs. We bypass `Pane::spawn` by leaving the panes
     /// map empty — `directional_neighbor` only reads `last_rects`.
@@ -478,6 +559,7 @@ mod tests {
             animation_tick: 0,
             active_keys: HashMap::new(),
             input_state: InputState::new(),
+            dir_listing: DirListing::new(),
         }
     }
 }

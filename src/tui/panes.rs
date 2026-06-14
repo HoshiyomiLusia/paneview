@@ -90,8 +90,11 @@ fn screen_to_lines(pane: &Pane, width: u16, height: u16, focused: bool) -> Vec<L
 
     let mut lines = Vec::with_capacity(rows as usize);
     for row in 0..rows {
-        let mut spans: Vec<Span<'static>> = Vec::new();
-        let mut current_text = String::new();
+        // Most lines are a handful of style runs over `cols` cells. Size the
+        // run buffer to the full width up front so it never reallocates, and
+        // give the span vec a small starting capacity.
+        let mut spans: Vec<Span<'static>> = Vec::with_capacity(8);
+        let mut current_text = String::with_capacity(cols as usize);
         let mut current_style = Style::default();
 
         for col in 0..cols {

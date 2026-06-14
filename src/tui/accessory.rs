@@ -1,13 +1,13 @@
 //! Accessory strip below the panes: filesystem listing + on-screen keyboard.
 
-use std::fs;
+use std::fmt::Write as _;
 
 use ratatui::{
     Frame,
     layout::{Constraint, Direction, Layout, Rect},
 };
 
-use crate::app::App;
+use crate::app::{App, DirListing};
 
 use super::fmt::truncate;
 use super::keyboard::draw_keyboard;
@@ -31,22 +31,26 @@ pub(super) fn draw_accessory(frame: &mut Frame<'_>, area: Rect, app: &App) {
     };
 
     if chunks.len() == 2 {
-        draw_filesystem(frame, chunks[0]);
+        draw_filesystem(frame, chunks[0], app.dir_listing());
         draw_keyboard(frame, chunks[1], app);
     } else if let Some(keyboard_area) = chunks.first() {
         draw_keyboard(frame, *keyboard_area, app);
     }
 }
 
-fn draw_filesystem(frame: &mut Frame<'_>, area: Rect) {
+fn draw_filesystem(frame: &mut Frame<'_>, area: Rect, listing: &DirListing) {
     let inner = draw_panel(frame, area, "Filesystem");
     if inner.height == 0 {
         return;
     }
 
-    let (path, entries) = current_dir_entries();
     let mut y = inner.y;
-    draw_line(frame, inner, &mut y, truncate(&path, inner.width as usize));
+    draw_line(
+        frame,
+        inner,
+        &mut y,
+        truncate(&listing.path, inner.width as usize),
+    );
 
     let rows = inner.bottom().saturating_sub(y) as usize;
     if rows == 0 {
@@ -59,35 +63,12 @@ fn draw_filesystem(frame: &mut Frame<'_>, area: Rect) {
         let mut line = String::new();
         for column in 0..columns {
             let index = row + column * rows;
-            let Some(entry) = entries.get(index) else {
+            let Some(entry) = listing.entries.get(index) else {
                 continue;
             };
             let cell = truncate(entry, column_width.saturating_sub(1));
-            line.push_str(&format!("{cell:<column_width$}"));
+            let _ = write!(line, "{cell:<column_width$}");
         }
         draw_line(frame, inner, &mut y, line);
     }
-}
-
-fn current_dir_entries() -> (String, Vec<String>) {
-    let path = std::env::current_dir().unwrap_or_else(|_| ".".into());
-    let path_label = path.display().to_string();
-    let mut entries = fs::read_dir(&path)
-        .map(|read_dir| {
-            read_dir
-                .filter_map(Result::ok)
-                .map(|entry| {
-                    let name = entry.file_name().to_string_lossy().to_string();
-                    let prefix = match entry.file_type() {
-                        Ok(file_type) if file_type.is_dir() => "[d]",
-                        Ok(_) => "[f]",
-                        Err(_) => "[?]",
-                    };
-                    format!("{prefix} {name}")
-                })
-                .collect::<Vec<_>>()
-        })
-        .unwrap_or_else(|_| vec!["N/A".to_string()]);
-    entries.sort_by_key(|entry| entry.to_ascii_lowercase());
-    (path_label, entries)
 }
